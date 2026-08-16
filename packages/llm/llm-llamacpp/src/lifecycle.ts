@@ -133,10 +133,12 @@ export class ModelLifecycle {
       })
     } catch (error: unknown) {
       if (signal?.aborted) throw error
-      // An unreachable /props on an otherwise answering server is an older
-      // build without the control surface — not a router.
-      this.router = false
-      return this.router
+      // A transport failure cannot tell an older build without the control
+      // surface apart from a server that is not up yet, so this call answers
+      // "not a router" WITHOUT caching it: caching would disable lifecycle
+      // management for the rest of this configuration generation the moment
+      // one probe met a server that had not finished starting.
+      return false
     }
     if (!response.ok) {
       this.router = false
@@ -155,13 +157,24 @@ export class ModelLifecycle {
    * All model entries the endpoint currently reports.
    * @param signal - cancellation for the listing request.
    * @returns the live listing entries in endpoint order.
-   * @throws LlmError `AUTH`/`SERVER` naming the endpoint on a failed listing.
+   * @throws LlmError `ABORTED`/`TRANSPORT`/`AUTH`/`SERVER` naming the endpoint on a failed listing.
    */
   async entries(signal?: AbortSignal): Promise<RouterModelEntry[]> {
-    const response = await fetch(`${this.options.origin}/v1/models`, {
-      headers: await this.controlHeaders(),
-      ...signal === undefined ? {} : { signal },
-    })
+    let response: Response
+    try {
+      response = await fetch(`${this.options.origin}/v1/models`, {
+        headers: await this.controlHeaders(),
+        ...signal === undefined ? {} : { signal },
+      })
+    } catch (error: unknown) {
+      // The adapter's pre-flight ensure-loaded runs outside its own error
+      // mapping, so an unwrapped rejection would reach callers as a bare
+      // TypeError/AbortError that no code-keyed layer can classify.
+      if (signal?.aborted) {
+        throw new LlmError(`llama.cpp model listing from ${this.options.origin}/v1/models aborted`, 'ABORTED', { cause: error })
+      }
+      throw new LlmError(`llama.cpp model listing from ${this.options.origin}/v1/models failed`, 'TRANSPORT', { cause: error })
+    }
     if (!response.ok) {
       throw new LlmError(
         `llama.cpp model listing from ${this.options.origin}/v1/models failed (HTTP ${response.status})`,
@@ -193,26 +206,39 @@ export class ModelLifecycle {
    * requests (the router's own eviction covers `max_instances: 1` either way).
    * @param model - model id the next chat request targets.
    * @param signal - cancellation; the wait settles promptly after it aborts.
+   * @param onPoll - liveness tick invoked on every status poll, so a caller
+   * holding its own idle deadline over this wait can keep it armed.
    * @returns resolves once the model is resident (or immediately on a non-router).
    * @throws LlmError `TIMEOUT` when the load exceeds `loadTimeoutMs`; `ABORTED`, `AUTH`, or `TRANSPORT` from the control calls.
    */
-  async ensureLoaded(model: string, signal?: AbortSignal): Promise<void> {
+  async ensureLoaded(model: string, signal?: AbortSignal, onPoll?: () => void): Promise<void> {
     if (!(await this.isRouter(signal))) return
     const existing = this.inflight.get(model)
     if (existing !== undefined) {
       // Joining an in-flight load: the waiter that issued it already
       // reported `loading`; the shared wait settles both callers together.
-      await existing
-      return
+      try {
+        await existing
+        return
+      } catch (error: unknown) {
+        // The shared wait carries the ISSUING caller's cancellation, which is
+        // not this caller's: a still-live joiner falls through to its own wait
+        // instead of inheriting someone else's abort. The router keeps loading
+        // either way, so that wait rejoins the transition rather than re-issuing.
+        if (signal?.aborted || !(error instanceof LlmError && error.code === 'ABORTED')) throw error
+      }
     }
-    const wait = this.waitForLoaded(model, signal)
+    const wait = this.waitForLoaded(model, signal, onPoll)
     this.inflight.set(model, wait)
     try {
       // A `false` return means the model was already resident: no transition
-      // happened, so no terminal report belongs after it either.
-      if (!await wait) return
-      this.report({ model, phase: 'ready' })
+      // happened, so no terminal report belongs after it either — but the
+      // model is resident under this manager's watch either way, which is
+      // what on-switch hygiene later needs to know to reclaim it.
+      const transitioned = await wait
       this.knownLoaded.add(model)
+      if (!transitioned) return
+      this.report({ model, phase: 'ready' })
       if (this.options.autoUnload === 'on-switch') this.unloadIdleOthers(model)
     } catch (error: unknown) {
       this.report({
@@ -222,7 +248,11 @@ export class ModelLifecycle {
       })
       throw error
     } finally {
-      this.inflight.delete(model)
+      // Only retract our OWN entry. A joiner that fell through after the
+      // issuer's abort has already published its wait under this key, and
+      // deleting that would send the next caller to re-issue `/models/load`
+      // against a load this manager is still watching.
+      if (this.inflight.get(model) === wait) this.inflight.delete(model)
     }
   }
 
@@ -231,7 +261,7 @@ export class ModelLifecycle {
    * @returns whether a load transition was reported (an already-resident
    * model transitions nothing and reports nothing).
    */
-  private async waitForLoaded(model: string, signal?: AbortSignal): Promise<boolean> {
+  private async waitForLoaded(model: string, signal?: AbortSignal, onPoll?: () => void): Promise<boolean> {
     const state = await this.status(model, signal)
     if (state === 'loaded') return false
     this.report({ model, phase: 'loading' })
@@ -250,6 +280,7 @@ export class ModelLifecycle {
         )
       }
       await sleep(this.options.pollIntervalMs, signal)
+      onPoll?.()
       const next = await this.status(model, signal)
       if (next === 'loaded') return true
       if (next === 'unloaded' && !reloaded) {

@@ -201,7 +201,16 @@ export class LlamaCppAdapter extends LlmAdapter {
 
   /** The lifecycle manager for the current generation, rebuilt on config change. */
   private lifecycleOf(connection: LlamaCppConnectionOptions): ModelLifecycle {
-    const key = JSON.stringify([connection.origin, connection.autoUnload, connection.loadTimeoutMs, connection.pollIntervalMs])
+    // The credential reference belongs in the key: `authorize` closes over the
+    // generation the manager was built from, so a manager kept across a
+    // reference change would keep authorizing control calls with the old one.
+    const key = JSON.stringify([
+      connection.origin,
+      connection.apiKeyEnv,
+      connection.autoUnload,
+      connection.loadTimeoutMs,
+      connection.pollIntervalMs,
+    ])
     if (this.lifecycle === undefined || this.lifecycleKey !== key) {
       this.lifecycle?.dispose()
       this.lifecycle = new ModelLifecycle({
@@ -232,7 +241,12 @@ export class LlamaCppAdapter extends LlmAdapter {
     }
     lifecycle.acquire(options.model)
     using watchdog = idleWatchdog(upstream, connection.streamIdleTimeoutMs, STREAM_IDLE_TIMEOUT_CODE)
-    const iterator = this.attempt(options, watchdog.signal, connection, apiKey, lifecycle)[Symbol.asyncIterator]()
+    // Every sign of provider life re-arms the idle deadline: SSE keep-alive
+    // comments during a long prefill, and each status poll of a load the
+    // retry path drives (that load runs inside the armed `next()` window, so
+    // without the tick a cold model would trip the idle deadline mid-load).
+    const pulse = (): void => { watchdog.pulse() }
+    const iterator = this.attempt(options, watchdog.signal, connection, apiKey, lifecycle, pulse)[Symbol.asyncIterator]()
     let exhausted = false
     try {
       while (true) {
@@ -281,17 +295,18 @@ export class LlamaCppAdapter extends LlmAdapter {
     connection: LlamaCppConnectionOptions,
     apiKey: string | undefined,
     lifecycle: ModelLifecycle,
+    pulse: () => void,
   ): AsyncIterable<StreamChunk> {
     try {
-      yield* this.request(options, signal, connection, apiKey, () => {})
+      yield* this.request(options, signal, connection, apiKey, pulse)
     } catch (error: unknown) {
       if (error instanceof LlmError
         && error.code === MODEL_NOT_LOADED_CODE
         && connection.autoLoad
         && !signal.aborted) {
         // The router's own listing is authoritative; load and retry once.
-        await lifecycle.ensureLoaded(options.model, signal)
-        yield* this.request(options, signal, connection, apiKey, () => {})
+        await lifecycle.ensureLoaded(options.model, signal, pulse)
+        yield* this.request(options, signal, connection, apiKey, pulse)
         return
       }
       throw error

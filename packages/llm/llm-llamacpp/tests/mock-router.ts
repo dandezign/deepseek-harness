@@ -8,6 +8,21 @@ export async function closeMockRouters(): Promise<void> {
   await Promise.all(servers.splice(0).map(server => new Promise(resolve => server.close(resolve))))
 }
 
+/**
+ * Reserve a port by binding it and letting go, so a spec can address an
+ * origin BEFORE anything listens there and start the router on it later.
+ * @returns a port number free at the moment it was released.
+ */
+export async function freePort(): Promise<number> {
+  const probe = createServer()
+  await new Promise<void>((resolve) => { probe.listen(0, '127.0.0.1', resolve) })
+  const address = probe.address()
+  if (address === null || typeof address === 'string') throw new Error('no port')
+  const { port } = address
+  await new Promise((resolve) => { probe.close(resolve) })
+  return port
+}
+
 /** One configured mock model. */
 export interface MockModel {
   id: string
@@ -37,6 +52,8 @@ export interface MockRouterOptions {
    * adapter's load-and-retry exists for.
    */
   failChatNotLoadedOnce?: string[]
+  /** Listen on this exact port instead of an arbitrary free one (see {@link freePort}). */
+  port?: number
 }
 
 /** A live mock of a llama.cpp multi-model router. */
@@ -193,7 +210,7 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
     response.end(JSON.stringify({ error: { message: 'File Not Found', type: 'not_found_error', code: 404 } }))
   }
 
-  await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve) })
+  await new Promise<void>((resolve) => { server.listen(options.port ?? 0, '127.0.0.1', resolve) })
   servers.push(server)
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('no port')

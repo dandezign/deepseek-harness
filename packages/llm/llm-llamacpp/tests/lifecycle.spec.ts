@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { contextWindowFromArgs, discoverRouterModels, modalitiesOf, parseModelsReply } from '../src/discovery.ts'
 import { ModelLifecycle } from '../src/lifecycle.ts'
 import type { ModelLoadTransition } from '../src/lifecycle.ts'
-import { closeMockRouters, mockRouter } from './mock-router.ts'
+import { closeMockRouters, freePort, mockRouter } from './mock-router.ts'
 
 afterEach(async () => {
   await closeMockRouters()
@@ -220,6 +220,59 @@ describe('ModelLifecycle', () => {
     // fire-and-forget, so give the POSTs a beat to land.
     await new Promise((resolve) => { setTimeout(resolve, 50) })
     expect(server.unloadCount.get('a')).toBe(1)
+  })
+
+  it('on-switch reclaims a model that was already resident on first use', async () => {
+    // The model never transitions under this manager's watch, so tracking
+    // residency only on transition would leave it permanently unreclaimable.
+    const server = await mockRouter({
+      models: [{ id: 'resident', start: 'loaded' }, { id: 'next' }],
+      loadDelayMs: 15,
+      maxInstances: 2,
+    })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'on-switch',
+    })
+    await lifecycle.ensureLoaded('resident')
+    expect(server.loadCount.get('resident')).toBeUndefined()
+    await lifecycle.ensureLoaded('next')
+    await new Promise((resolve) => { setTimeout(resolve, 50) })
+    expect(server.unloadCount.get('resident')).toBe(1)
+  })
+
+  it('keeps lifecycle management after probing a server that is not up yet', async () => {
+    // A harness started before llama.cpp cannot tell an old build without
+    // /props from one still starting, so the probe must not latch off.
+    const port = await freePort()
+    const lifecycle = new ModelLifecycle({
+      origin: `http://127.0.0.1:${port}`,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+    })
+    await expect(lifecycle.ensureLoaded('a')).resolves.toBeUndefined()
+    const server = await mockRouter({ models: [{ id: 'a' }], loadDelayMs: 15, port })
+    await lifecycle.ensureLoaded('a')
+    expect(server.loadCount.get('a')).toBe(1)
+  })
+
+  it('reports an unreachable endpoint as a coded TRANSPORT error', async () => {
+    // The adapter's pre-flight ensure-loaded runs outside its own mapping, so
+    // an unwrapped rejection would reach callers as an unclassifiable TypeError.
+    const port = await freePort()
+    const lifecycle = new ModelLifecycle({
+      origin: `http://127.0.0.1:${port}`,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+    })
+    await expect(lifecycle.entries()).rejects.toMatchObject({ code: 'TRANSPORT' })
   })
 })
 

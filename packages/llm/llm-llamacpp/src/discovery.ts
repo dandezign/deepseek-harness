@@ -75,7 +75,12 @@ export function parseModelsReply(reply: unknown): DiscoveredRouterModel[] {
     throw new LlmError('llama.cpp model listing has no "data" array', 'MALFORMED_RESPONSE')
   }
   const models: DiscoveredRouterModel[] = []
-  for (const entry of data) {
+  // The element type is a claim about the wire, not a guarantee: narrow each
+  // row back from `unknown` so a non-object (a proxy's null padding) is
+  // skipped like any other unusable entry instead of failing the listing.
+  for (const row of data as unknown[]) {
+    if (row === null || typeof row !== 'object') continue
+    const entry = row as RouterModelEntry
     if (typeof entry.id !== 'string' || entry.id.length === 0) continue
     const status = entry.status?.value
     const modalities = modalitiesOf(entry)

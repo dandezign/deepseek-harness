@@ -10,7 +10,7 @@ import type { ModelsSectionInjected, ModelsSectionProps } from '../src/client/Mo
 import { CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
 import { formatCapacity, parseCapacity } from '../src/client/DeepSeekModelsEditor.tsx'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
-import { ModelsSettingsStore, deriveKeyRef, protocolChoices } from '../src/client/store.ts'
+import { ModelsSettingsStore, deriveKeyRef, protocolChoices, providerUsable } from '../src/client/store.ts'
 import { en } from '../src/client/locales.ts'
 import { settingsSchema } from './settings-schema.client.ts'
 
@@ -676,6 +676,146 @@ describe('provider rows', () => {
     // Absent is "unknown", never "shipped": an adapter that answers nothing
     // must not have its routes labelled either way.
     expect(screen.queryByText(en.customTag)).toBeNull()
+  })
+})
+
+/** The llama.cpp section shape as the host serializes it (whole-section profile). */
+const LlamaCppConfig = Schema.object({
+  baseURL: Schema.string(),
+  apiKeyEnv: Schema.string().role('credential-ref'),
+  displayName: Schema.string(),
+  autoLoad: Schema.boolean(),
+  autoUnload: Schema.union(['never', 'on-switch']),
+  models: Schema.array(Schema.object({
+    id: Schema.string().required(),
+    name: Schema.string(),
+    description: Schema.string(),
+    contextWindow: Schema.number(),
+    maxTokens: Schema.number(),
+  })),
+})
+
+function llamaCppNamespace(
+  section: Record<string, unknown> = {},
+  user: Record<string, unknown> = section,
+): SettingsNamespaceView {
+  return {
+    ns: 'llm-llamacpp',
+    schema: JSON.parse(JSON.stringify(LlamaCppConfig.toJSON())) as unknown,
+    value: section,
+    base: {},
+    user,
+    applies: 'live',
+    secrets: [],
+    revision: 5,
+  }
+}
+
+describe('llama.cpp provider card', () => {
+  async function mountLlamaCpp(options: {
+    section?: Record<string, unknown>
+    discover?: ReturnType<typeof vi.fn>
+    mutate?: ReturnType<typeof vi.fn>
+  } = {}) {
+    const namespace = llamaCppNamespace(options.section ?? {
+      baseURL: 'http://127.0.0.1:8081',
+      apiKeyEnv: 'LLAMACPP_API_KEY',
+    })
+    const discover = options.discover ?? vi.fn(() => Promise.resolve(ok({
+      models: [{ id: 'qwen3-8b', contextWindow: 131_072 }],
+    })))
+    const mutate = options.mutate ?? vi.fn(() => Promise.resolve(ok(namespace)))
+    const face = {
+      llm: {
+        providers: vi.fn(() => Promise.resolve(ok({
+          providers: [{
+            provider: 'llamacpp',
+            displayName: 'llama.cpp',
+            settingsNs: 'llm-llamacpp',
+            settingsPath: [],
+            active: true,
+            credentialOptional: true,
+          }],
+        }))),
+        models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
+        discoverModels: discover,
+      },
+      settings: {
+        describe: vi.fn(() => Promise.resolve(ok({ writable: true, namespaces: [namespace] }))),
+        update: vi.fn(),
+        replace: vi.fn(),
+        mutate,
+      },
+      credentials: {
+        describe: vi.fn((payload: { refs: string[] }) => Promise.resolve(ok({
+          credentials: Object.fromEntries(payload.refs.map(ref => [ref, { configured: false, writable: true }])),
+        }))),
+        set: vi.fn(() => Promise.resolve(ok({}))),
+        unset: vi.fn(),
+      },
+    }
+    const controller = new ModelsSettingsStore(face as unknown as WireFace)
+    await controller.load()
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      api={face as never}
+      t={t}
+    />)
+    return { discover, mutate }
+  }
+
+  it('treats an active keyless route as usable and shows no missing-key dot', async () => {
+    await mountLlamaCpp()
+    const row = screen.getByText('llama.cpp').closest('li')
+    expect(row).not.toBeNull()
+    expect(screen.queryByTitle(en.credentialMissing)).toBeNull()
+  })
+
+  it('edits the endpoint and model catalog without demanding a key', async () => {
+    const { discover, mutate } = await mountLlamaCpp()
+    openEditor('llama.cpp')
+
+    // No route-level identity fields; the endpoint and the rows are the card.
+    const fields = () => [...document.querySelectorAll('input,select')]
+      .map(el => el.getAttribute('aria-label')).filter(Boolean)
+    expect(fields()).toEqual([en.keyInput, en.baseUrl])
+    expect(screen.getByLabelText<HTMLInputElement>(en.keyInput).placeholder).toBe(en.keyPlaceholderOptional)
+    expect(buttonNamed(en.apply).disabled).toBe(false)
+
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await screen.findByText(en.fetchTitle)
+    expect(firstProbe(discover)).toEqual({
+      settingsNs: 'llm-llamacpp',
+      provider: 'llamacpp',
+      baseURL: 'http://127.0.0.1:8081',
+    })
+    fireEvent.click(screen.getByText(en.fetchAdopt))
+
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate)).toMatchObject({
+      ns: 'llm-llamacpp',
+      ops: [{ op: 'set', path: ['models'], value: [{ id: 'qwen3-8b', contextWindow: 131_072 }] }],
+    })
+  })
+
+  it('counts an optional credential route usable in the store join', () => {
+    const base = {
+      provider: 'llamacpp',
+      displayName: 'llama.cpp',
+      settingsNs: 'llm-llamacpp',
+      settingsPath: [] as string[],
+      active: true,
+    }
+    expect(providerUsable({
+      entry: { ...base, credentialOptional: true }, configured: true, removable: false,
+      apiKeyEnv: 'LLAMACPP_API_KEY', credential: undefined,
+    })).toBe(true)
+    expect(providerUsable({
+      entry: base, configured: true, removable: false,
+      apiKeyEnv: 'LLAMACPP_API_KEY', credential: undefined,
+    })).toBe(false)
   })
 })
 

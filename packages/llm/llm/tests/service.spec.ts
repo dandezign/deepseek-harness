@@ -6,6 +6,7 @@ import LlmRuntime, {
   GenerateOptions,
   HarnessError,
   isContextWindowExceededError,
+  isModelNotLoadedError,
   isQuotaExceededError,
   LlmAdapter,
   LlmError,
@@ -127,6 +128,20 @@ describe('LlmRuntime', () => {
     ]) expect(isQuotaExceededError(detail)).toBe(true)
     expect(isQuotaExceededError('HTTP 429: rate limit reached')).toBe(false)
     expect(isQuotaExceededError('quota resets in one minute')).toBe(false)
+  })
+
+  it('recognizes a known-but-unloaded model without swallowing other 400s', () => {
+    // llama.cpp router wording, thrown and in-band delivery styles alike.
+    expect(isModelNotLoadedError('model is not loaded')).toBe(true)
+    expect(isModelNotLoadedError('400: {"code":400,"message":"model is not loaded","type":"invalid_request_error"}')).toBe(true)
+    expect(isModelNotLoadedError('model "qwen3-8b" is not loaded')).toBe(true)
+    expect(isModelNotLoadedError('no model loaded')).toBe(true)
+    expect(isModelNotLoadedError('no model is loaded')).toBe(true)
+    // Adjacent but different failures stay outside the class.
+    expect(isModelNotLoadedError('model not found')).toBe(false)
+    expect(isModelNotLoadedError('failed to load model weights')).toBe(false)
+    expect(isModelNotLoadedError('model is currently loading')).toBe(false)
+    expect(isModelNotLoadedError('invalid request: temperature must be positive')).toBe(false)
   })
 
   it('errorChain renders the full cause chain of a wrapped transport failure', () => {

@@ -24,6 +24,17 @@ export class HarnessError extends Error {
 /** Canonical provider-neutral code for a model request rejected because its context window was exceeded. */
 export const CONTEXT_WINDOW_EXCEEDED_CODE = 'CONTEXT_WINDOW_EXCEEDED'
 
+/**
+ * Canonical provider-neutral code for a request naming a model the endpoint
+ * recognizes but is not currently serving — llama.cpp's multi-model router
+ * with autoload disabled answers such a request with
+ * `400 {"message":"model is not loaded"}`. Distinct from `UNKNOWN_MODEL`
+ * (the endpoint does not know the id at all): the fix is to load the model,
+ * not correct the id, which is why an adapter that owns model lifecycle
+ * treats this code as its load-and-retry trigger rather than a user error.
+ */
+export const MODEL_NOT_LOADED_CODE = 'MODEL_NOT_LOADED'
+
 /** Canonical provider-neutral code for an exhausted account quota or balance. */
 export const QUOTA_EXCEEDED_CODE = 'QUOTA'
 
@@ -83,6 +94,19 @@ export function isContextWindowExceededError(detail: string): boolean {
     || TOO_LARGE_FOR_CONTEXT.test(detail)
     || /\b(?:input|prompt|request)\s+(?:is\s+)?too\s+(?:long|large)\s+for\s+(?:this|the)\s+model\b/i.test(detail)
     || EXCEEDS_MODEL_CONTEXT.test(detail)
+}
+
+/**
+ * Recognize provider wording that names a model the endpoint knows but is
+ * not currently serving. llama.cpp's router wording is `model is not loaded`
+ * (optionally with the id quoted between); the bounded gap keeps the two
+ * phrases inside one sentence so unrelated mentions do not combine.
+ * @param detail - provider error code/type/message text joined into one string.
+ * @returns true when the detail identifies a recognized-but-not-loaded model.
+ */
+export function isModelNotLoadedError(detail: string): boolean {
+  return /\bmodel\b[^\n.]{0,80}?\bnot\s+loaded\b/i.test(detail)
+    || /\bno\s+model\s+(?:is\s+)?loaded\b/i.test(detail)
 }
 
 /**

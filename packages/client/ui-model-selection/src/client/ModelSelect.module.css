@@ -268,3 +268,75 @@
   flex: 0 0 auto;
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* Model-load/switch banner: the toast look without the timed fade — the
+   service owns the lifecycle (hold while loading, brief hold after the
+   terminal transition), so the sheet only animates the entrance. Purely an
+   announcement; never intercepts clicks. */
+.loadBanner {
+  position: fixed;
+  top: 120px;
+  left: 50%;
+  z-index: 1100;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 48px));
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--dsw-alias-button-contrast-fill);
+  color: var(--dsw-alias-label-primary-inverted);
+  font-size: 14px;
+  line-height: 22px;
+  box-shadow: var(--dsw-shadow-lv3);
+  transform: translateX(-50%);
+  animation: dsh-load-banner-in 160ms ease-out;
+}
+
+.loadBannerFailed {
+  background: var(--dsw-alias-state-warn-label);
+}
+
+.loadSpinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--dsw-alias-label-primary-inverted);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  animation: dsh-load-banner-spin 900ms linear infinite;
+}
+
+.loadText {
+  min-width: 0;
+}
+
+@keyframes dsh-load-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes dsh-load-banner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadBanner {
+    animation: none;
+  }
+
+  .loadSpinner {
+    animation: none;
+    border-bottom-color: var(--dsw-alias-label-primary-inverted);
+  }
+}

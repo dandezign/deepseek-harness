@@ -321,6 +321,7 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
           const credentialMissing = !credentialConfigured
             && row.apiKeyEnv !== undefined
             && row.credential?.configured === false
+            && row.entry.credentialOptional !== true
           return (
             <li key={row.entry.provider} className={styles['rowCard']}>
               <div className={styles['rowHead']}>

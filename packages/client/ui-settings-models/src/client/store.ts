@@ -221,6 +221,10 @@ export class ModelsSettingsStore {
 export function providerUsable(row: ProviderRow): boolean {
   if (!row.entry.active) return false
   if (row.apiKeyEnv === undefined) return true
+  // An optional credential (the adapter declared `credentialOptional`) means
+  // the route serves anonymous requests; the stored key, when present, is a
+  // bearer for deployments that set one, not a precondition.
+  if (row.entry.credentialOptional === true) return true
   return row.credential?.configured === true
 }
 

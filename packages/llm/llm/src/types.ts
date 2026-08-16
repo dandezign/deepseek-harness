@@ -21,7 +21,29 @@ declare module '@deepseek-ai/cordis' {
      * @mode emit
      */
     'llm/adapters-updated'(): void
+    /**
+     * One live model-load transition reported by an adapter that owns model
+     * lifecycle (for example a llama.cpp router loading the model a request
+     * targets). Transport progress only: never model input, never logged.
+     * Emitted at each transition's commit point — when the load starts, and
+     * when it settles ready or failed.
+     * @mode emit
+     * @param progress - the transition, JSON-safe.
+     */
+    'llm/model-load-progress'(progress: LlmModelLoadProgress): void
   }
+}
+
+/** One live model-load transition emitted through `llm/model-load-progress`. */
+export interface LlmModelLoadProgress {
+  /** Provider route id owning the lifecycle (e.g. `llamacpp`). */
+  readonly provider: string
+  /** Wire model id the transition concerns. */
+  readonly model: string
+  /** `loading` when a load was issued or joined; `ready`/`failed` when it settles. */
+  readonly phase: 'loading' | 'ready' | 'failed'
+  /** Human-readable detail; the failure message on `failed`. */
+  readonly message?: string
 }
 
 export type {
@@ -184,6 +206,14 @@ export interface LlmConfigurableProvider {
    * from outside.
    */
   declared?: boolean
+  /**
+   * Whether this route serves requests with no stored credential: the
+   * profile's credential reference is then an optional bearer for
+   * deployments that do set one (a llama.cpp server answers anonymously
+   * unless launched with `--api-key`). Absent means a resolved reference is
+   * required. Only the adapter can answer; `active` still gates usability.
+   */
+  credentialOptional?: boolean
 }
 
 /**

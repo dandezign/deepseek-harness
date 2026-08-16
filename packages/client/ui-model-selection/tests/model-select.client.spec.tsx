@@ -5,6 +5,7 @@ import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ComponentProps } from 'react'
 import type { ModelDirectoryState } from '../src/client/directory.ts'
+import type { ModelLoadProgressState } from '../src/client/slots.ts'
 import { ModelSelect } from '../src/client/ModelSelect.tsx'
 import { zh } from '../src/client/locales.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -58,6 +59,7 @@ describe('ModelSelect reasoning effort', () => {
       locked={false}
       available
       directory={directory}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
       load={vi.fn()}
       select={select}
       t={t}
@@ -99,6 +101,7 @@ describe('ModelSelect reasoning effort', () => {
       locked={false}
       available
       directory={directory}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
       load={vi.fn()}
       select={vi.fn().mockResolvedValue(true)}
       t={t}
@@ -121,6 +124,7 @@ describe('ModelSelect reasoning effort', () => {
       locked={false}
       available
       directory={directory}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
       load={vi.fn()}
       select={select}
       t={t}
@@ -153,6 +157,7 @@ describe('ModelSelect reasoning effort', () => {
       locked={false}
       available
       directory={directory}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
       load={vi.fn()}
       select={select}
       t={t}
@@ -173,6 +178,7 @@ describe('ModelSelect reasoning effort', () => {
       locked={false}
       available={false}
       directory={createSnapshotStore(state())}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
       load={load}
       select={vi.fn().mockResolvedValue(false)}
       t={t}
@@ -180,5 +186,59 @@ describe('ModelSelect reasoning effort', () => {
 
     expect(screen.queryByRole('button')).toBeNull()
     expect(load).not.toHaveBeenCalled()
+  })
+})
+
+describe('ModelSelect model-load progress banner', () => {
+  it('tracks the live load transitions the host pushes, through settlement', async () => {
+    const progress = createSnapshotStore<ModelLoadProgressState>(null)
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={createSnapshotStore(state())}
+      progress={progress}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    />)
+
+    progress.set({ seq: 1, provider: 'llamacpp', model: 'qwen3-8b', phase: 'loading' })
+    await screen.findByText(/正在加载模型 qwen3-8b/)
+
+    progress.set({ seq: 2, provider: 'llamacpp', model: 'qwen3-8b', phase: 'ready' })
+    await screen.findByText('模型 qwen3-8b 已加载并切换')
+  })
+
+  it('announces a failed load with its message', async () => {
+    const progress = createSnapshotStore<ModelLoadProgressState>(
+      { seq: 1, provider: 'llamacpp', model: 'qwen3-8b', phase: 'failed', message: 'did not become loaded within 600000ms' },
+    )
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={createSnapshotStore(state())}
+      progress={progress}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    />)
+
+    const banner = await screen.findByRole('status')
+    expect(banner.getAttribute('aria-live')).toBe('assertive')
+    expect(banner.textContent).toContain('模型 qwen3-8b 加载失败：did not become loaded within 600000ms')
+  })
+
+  it('renders no banner while no load is in flight', () => {
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={createSnapshotStore(state())}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    />)
+
+    expect(screen.queryByRole('status')).toBeNull()
   })
 })

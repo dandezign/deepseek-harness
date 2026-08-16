@@ -9,6 +9,7 @@ import { createLaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environ
 import LlmRuntime, { CallId, createUserMessage,
   CONTEXT_WINDOW_EXCEEDED_CODE,
   LlmError,
+  MODEL_NOT_LOADED_CODE,
   ProviderRequestId,
   QUOTA_EXCEEDED_CODE,
   ReasoningEffortId,
@@ -1149,6 +1150,26 @@ describe('DeepSeekAdapter against a mock server', () => {
     expect(result.finish).toMatchObject({
       kind: 'error',
       failure: { code: CONTEXT_WINDOW_EXCEEDED_CODE },
+    })
+  })
+
+  it('classifies a recognized-but-unloaded model with the canonical code', async () => {
+    const server = await mockServer([{
+      kind: 'http-error',
+      status: 400,
+      body: JSON.stringify({
+        error: {
+          message: 'model is not loaded',
+          type: 'invalid_request_error',
+          code: 400,
+        },
+      }),
+    }])
+    const ctx = await harness(server.url)
+    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    expect(result.finish).toMatchObject({
+      kind: 'error',
+      failure: { code: MODEL_NOT_LOADED_CODE },
     })
   })
 

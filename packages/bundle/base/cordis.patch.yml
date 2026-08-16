@@ -95,6 +95,18 @@
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
 
+    # The llama.cpp router adapter, mounted dormant beside its generic twin:
+    # zero routes until a `llm-llamacpp:` settings section supplies a baseURL,
+    # then the single `llamacpp` route serves chat through the server's
+    # OpenAI-compatible endpoint while this adapter owns what pi-ai cannot —
+    # ensure-loaded before each request, one load-and-retry on the router's
+    # "model is not loaded" race, optional unload-after-switch, and model
+    # discovery that reads context windows and vision capability from the
+    # live listing. A route of the same name under `llm-pi-ai:` collides
+    # (DUPLICATE_ADAPTER, by design): move the route here when adopting it.
+    - id: llm-llamacpp
+      name: '@deepseek-ai/dsh-llm-llamacpp'
+
     - id: session-persistence-jsonl
       name: '@deepseek-ai/dsh-session-persistence-jsonl'
       config:

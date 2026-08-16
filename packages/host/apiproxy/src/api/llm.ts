@@ -29,6 +29,12 @@ export interface ConfigurableProviderView {
    * surface must treat absence as "unknown", not as "shipped".
    */
   declared?: boolean
+  /**
+   * Whether the route serves requests with no stored credential (its
+   * credential reference is an optional bearer). Absent means a resolved
+   * reference is required; `active` still gates usability either way.
+   */
+  credentialOptional?: boolean
 }
 
 /** Llm-domain unary methods (the map keys llm.* of RpcMethodMap). */

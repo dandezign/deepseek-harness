@@ -163,6 +163,7 @@ export function apply(ctx: ClientContext): void {
         return {
           available,
           directory: directory.store,
+          progress: models.progress,
           load: () => {
             if (available) directory.load().catch(() => { /* surfaced on the store */ })
           },

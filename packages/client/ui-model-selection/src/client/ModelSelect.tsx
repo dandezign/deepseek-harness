@@ -43,12 +43,18 @@ interface EffortChoice {
  * @returns the trigger and, while open, the two-level menu.
  */
 export function ModelSelect(
-  { locked, available, directory, load, select, t }:
+  { locked, available, directory, progress, load, select, t }:
   ModelSelectInjected & { locked: boolean } & PropsLocale<'model'>,
 ) {
   const state = useSyncExternalStore(
     fn => directory.subscribe(fn),
     () => directory.getSnapshot(),
+  )
+  // Host-global load progress (one load at a time), driving the transient
+  // load/switch banner — the host pushes each transition's commit point.
+  const loadProgress = useSyncExternalStore(
+    fn => progress.subscribe(fn),
+    () => progress.getSnapshot(),
   )
   const [open, setOpen] = useState(false)
   const [pane, setPane] = useState<Pane>('root')
@@ -369,6 +375,26 @@ export function ModelSelect(
           anchor={rootRef.current?.closest<HTMLElement>('[data-composer-card]') ?? null}
           onDone={() => { setToast(null) }}
         />
+      )}
+      {loadProgress !== null && (
+        <div
+          className={clsx(css.loadBanner, loadProgress.phase === 'failed' && css.loadBannerFailed)}
+          role="status"
+          aria-live={loadProgress.phase === 'failed' ? 'assertive' : 'polite'}
+        >
+          {loadProgress.phase === 'loading'
+            ? <span className={css.loadSpinner} aria-hidden />
+            : loadProgress.phase === 'ready'
+              ? <IconCheckOutline16 />
+              : <IconWarningOutline16 />}
+          <span className={css.loadText}>
+            {loadProgress.phase === 'loading'
+              ? t('progress.loading', { model: loadProgress.model })
+              : loadProgress.phase === 'ready'
+                ? t('progress.ready', { model: loadProgress.model })
+                : t('progress.failed', { model: loadProgress.model, message: loadProgress.message ?? '' })}
+          </span>
+        </div>
       )}
     </div>
   )

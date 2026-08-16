@@ -989,6 +989,64 @@ Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicy
 
 Source: [`packages/llm/llm-deepseek/src/index.ts:106`](../packages/llm/llm-deepseek/src/index.ts)
 
+<a id="deepseek-aidsh-llm-llamacpp"></a>
+
+## `@deepseek-ai/dsh-llm-llamacpp`
+
+Requires: `llm`
+
+```ts config-catalog
+/**
+ * Plugin config, validated by the same-named schemastery schema and doubling
+ * as the `llm-llamacpp` settings-section shape. Everything is optional:
+ * without `baseURL` the plugin mounts dormant.
+ */
+export interface Config {
+  /** Server origin (`http://host:port`); a trailing `/v1` is tolerated and stripped. Falls back to $LLAMACPP_BASE_URL. */
+  baseURL?: string
+  /** Credential reference resolved per request (default `LLAMACPP_API_KEY`); a server without `--api-key` needs none. */
+  apiKeyEnv?: string
+  /** Selector label for the provider (default `llama.cpp`). */
+  displayName?: string
+  /** Ensure the requested model is loaded before each chat request (default true). */
+  autoLoad?: boolean
+  /** `on-switch` unloads the previously resident model after a successful switch, once no request holds it (default `never`). */
+  autoUnload?: 'never' | 'on-switch'
+  /** Ceiling for one model load wait in ms (default 600,000 — cold GGUF loads take minutes). */
+  loadTimeoutMs?: number
+  /** Poll interval for model status transitions in ms (default 1,000, minimum 100). */
+  pollIntervalMs?: number
+  /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
+  streamIdleTimeoutMs?: number
+  /** Positive context capacity used when the selected model has no exact value (default 32,768). */
+  defaultContextWindow?: number
+  /** Default per-request output cap; a model's own cap and explicit request values win (default 8,192). */
+  maxTokens?: number
+  /** Advisory models; `Fetch available models` on the configuration card proposes entries with capacities derived from the live listing. */
+  models?: LlamaCppCatalogModel[]
+  /** Provider-owned model-request retry policy; omission uses normal defaults. */
+  retryPolicy?: RetryPolicyConfig
+}
+
+/** One optional model entry advertised by the adapter. */
+export interface LlamaCppCatalogModel {
+  /** Wire model id accepted by the configured endpoint. */
+  id: string
+  /** Selector label; defaults to {@link id}. */
+  name?: string
+  /** Optional selector detail (discovery fills this from live status). */
+  description?: string
+  /** Known combined context capacity; omitted falls back to the route default. */
+  contextWindow?: number
+  /** Per-request output cap for this model; omission falls back to the route default. */
+  maxTokens?: number
+}
+```
+
+Depends on: [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
+
+Source: [`packages/llm/llm-llamacpp/src/index.ts:60`](../packages/llm/llm-llamacpp/src/index.ts)
+
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 
 ## `@deepseek-ai/dsh-llm-pi-ai`

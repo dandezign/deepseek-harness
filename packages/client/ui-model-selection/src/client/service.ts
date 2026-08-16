@@ -15,14 +15,19 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SessionRuntime } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionRuntime, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ModelDirectory } from './directory.ts'
+import type { ModelLoadProgressState } from './slots.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     modelDirectories: ModelDirectoryResolver
   }
 }
+
+/** How long a terminal load transition stays readable before it clears. */
+const PROGRESS_HOLD_MS = 4000
 
 /** Live mutable state in one holder (service methods run behind the caller-ctx tracker). */
 interface LiveState {
@@ -35,6 +40,16 @@ export class ModelDirectoryResolver extends Service {
   static inject = ['connection', 'sessions', 'remote']
 
   private readonly live: LiveState = { directories: new Map() }
+
+  /** Monotonic id of the latest load transition received. */
+  private progressSeq = 0
+
+  /**
+   * Live model-load progress (host-global: one load runs at a time), held
+   * while loading and briefly after the terminal transition. Consumers
+   * (the composer model seat) render it as the load/switch banner.
+   */
+  readonly progress: SnapshotStore<ModelLoadProgressState> = createSnapshotStore<ModelLoadProgressState>(null)
 
   /** Localized composer-block copy; this plugin owns the string it raises. */
   private readonly blockReason: () => string
@@ -58,6 +73,18 @@ export class ModelDirectoryResolver extends Service {
     }
     ctx.remote.$on('llm/adapters-updated', refresh)
     ctx.remote.$on('settings/document-updated', refresh)
+    // Model-load progress is transient transport state pushed at each
+    // transition's commit point: hold it while loading, briefly after it
+    // settles, and only clear the terminal state a newer load has not replaced.
+    ctx.remote.$on('llm/model-load-progress', (event) => {
+      const seq = ++this.progressSeq
+      this.progress.set({ seq, ...event })
+      if (event.phase === 'loading') return
+      setTimeout(() => {
+        const current = this.progress.getSnapshot()
+        if (current !== null && current.seq === seq) this.progress.set(null)
+      }, PROGRESS_HOLD_MS)
+    })
   }
 
   /**

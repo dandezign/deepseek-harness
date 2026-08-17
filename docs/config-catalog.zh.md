@@ -1067,6 +1067,15 @@ export interface LlamaCppCatalogModel {
    * Omitted means text-only.
    */
   inputModalities?: ('text' | 'image')[]
+  /**
+   * Thinking levels this model's chat template actually reads. Templates
+   * disagree — the Qwen3.8 family grades `reasoning_effort`, while Qwen3.6-
+   * and Qwen2.5-era templates ignore it and honor only `enable_thinking` —
+   * and nothing on the wire announces which. Declaring the subset keeps the
+   * picker from offering a level that would silently do nothing here.
+   * Omitted offers the full vocabulary.
+   */
+  reasoningEfforts?: ('low' | 'medium' | 'xhigh' | 'off')[]
 }
 ```
 

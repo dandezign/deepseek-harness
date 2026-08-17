@@ -240,6 +240,67 @@ describe('llm-llamacpp plugin through the runtime', () => {
     expect(resolveAdapterOptions({})).toBeUndefined()
   })
 
+  it('offers only the thinking levels a model declares, and refuses the rest', async () => {
+    // A Qwen3.6-era template ignores reasoning_effort and honors only
+    // enable_thinking, so offering graded levels there would be a lie.
+    const server = await mockRouter({ models: [{ id: 'qwen36' }], loadDelayMs: 5 })
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlamaCpp, {
+      baseURL: server.url,
+      models: [{ id: 'qwen36', reasoningEfforts: ['off'] }],
+    })
+
+    const resolved = await ctx.llm.resolveModelInfo('llamacpp', 'qwen36')
+    expect(resolved.reasoning?.efforts.map(effort => effort.id)).toEqual(['off'])
+
+    let refusal: StreamChunk | undefined
+    for await (const chunk of ctx.llm.stream({
+      provider: 'llamacpp',
+      model: 'qwen36',
+      messages: userMessage('hi'),
+      reasoningEffort: ReasoningEffortId('xhigh'),
+    })) {
+      refusal = chunk
+    }
+    // The runtime gates the declared vocabulary before the adapter is even
+    // called; the adapter keeps its own refusal for direct (non-service) use.
+    expect(refusal).toMatchObject({
+      type: 'finish',
+      reason: { kind: 'error', failure: { code: 'UNSUPPORTED_REASONING_EFFORT' } },
+    })
+    // Refused before the load: the model was never fetched for a bad level.
+    expect(server.loadCount.get('qwen36')).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
+
+  it('reads an undeclared list as unset, not as an empty declaration', async () => {
+    // schemastery normalizes an absent array to [], so a model that names
+    // neither list must still get the full vocabulary and the text modality —
+    // reading [] literally would announce a model that accepts nothing.
+    const server = await mockRouter({ models: [{ id: 'tiny' }] })
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlamaCpp, { baseURL: server.url, models: [{ id: 'tiny' }] })
+    const resolved = await ctx.llm.resolveModelInfo('llamacpp', 'tiny')
+    expect(resolved.reasoning?.efforts.map(effort => effort.id)).toEqual(['low', 'medium', 'xhigh', 'off'])
+    expect(resolved.inputModalities).toEqual(['text'])
+    await ctx.fiber.dispose()
+  })
+
+  it('honours a declared vision modality through the settings section', async () => {
+    const server = await mockRouter({ models: [{ id: 'seer' }] })
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlamaCpp, {
+      baseURL: server.url,
+      models: [{ id: 'seer', inputModalities: ['text', 'image'] }],
+    })
+    const resolved = await ctx.llm.resolveModelInfo('llamacpp', 'seer')
+    expect(resolved.inputModalities).toEqual(['text', 'image'])
+    await ctx.fiber.dispose()
+  })
+
   it('serves a second server as its own route with its own lifecycle', async () => {
     const first = await mockRouter({ models: [{ id: 'tiny' }], loadDelayMs: 10 })
     const second = await mockRouter({ models: [{ id: 'other' }], loadDelayMs: 10 })

@@ -49,6 +49,15 @@ export interface LlamaCppCatalogModel {
    * Omitted means text-only.
    */
   inputModalities?: ('text' | 'image')[]
+  /**
+   * Thinking levels this model's chat template actually reads. Templates
+   * disagree — the Qwen3.8 family grades `reasoning_effort`, while Qwen3.6-
+   * and Qwen2.5-era templates ignore it and honor only `enable_thinking` —
+   * and nothing on the wire announces which. Declaring the subset keeps the
+   * picker from offering a level that would silently do nothing here.
+   * Omitted offers the full vocabulary.
+   */
+  reasoningEfforts?: ('low' | 'medium' | 'xhigh' | 'off')[]
 }
 
 /** Validated connection facts for one operation (one configuration generation). */
@@ -138,6 +147,21 @@ const REASONING_EFFORTS = [
   { id: OFF_REASONING_EFFORT, name: 'Off' },
 ] as const
 
+/**
+ * The efforts one model offers: its own declared subset in the canonical
+ * order, or the full vocabulary when it declares none. An empty declaration
+ * is honoured as "this template reads no level", which is the truthful answer
+ * for a Qwen2.5-era template.
+ * @param model - the catalog entry, when the model is configured.
+ * @returns the efforts to advertise for it.
+ */
+function effortsOf(model: LlamaCppCatalogModel | undefined): readonly { id: ReasoningEffortId; name: string }[] {
+  const declared = model?.reasoningEfforts
+  if (declared === undefined) return REASONING_EFFORTS
+  const allowed = new Set<string>(declared)
+  return REASONING_EFFORTS.filter(effort => allowed.has(effort.id))
+}
+
 function modelInfo(provider: string, model: LlamaCppCatalogModel): LlmModelInfo {
   return {
     provider,
@@ -220,8 +244,30 @@ export class LlamaCppAdapter extends LlmAdapter {
         : modelInfo(provider, configured),
       context: { contextWindow },
       defaultMaxTokens: configured?.maxTokens ?? connection.maxTokens,
-      reasoning: { efforts: REASONING_EFFORTS },
+      reasoning: { efforts: effortsOf(configured) },
     })
+  }
+
+  /**
+   * Refuse a reasoning effort the selected model does not offer. A model that
+   * declared a subset means its template reads only that; sending anything
+   * else would either raise a template error server-side or, worse, be
+   * ignored while the user believes the level took effect.
+   * @throws LlmError `INVALID_REQUEST` naming the model and what it offers.
+   */
+  private assertEffortDeclared(connection: LlamaCppConnectionOptions, options: GenerateOptions): void {
+    const requested = options.reasoningEffort
+    if (requested === undefined) return
+    const configured = connection.models.find(entry => entry.id === options.model)
+    if (configured?.reasoningEfforts === undefined) return
+    const offered = effortsOf(configured)
+    if (offered.some(effort => effort.id === requested)) return
+    const names = offered.map(effort => effort.id).join(', ')
+    throw new LlmError(
+      `llama.cpp model "${options.model}" does not offer reasoning effort "${requested}"`
+      + (names.length > 0 ? `; it offers ${names}` : '; its chat template reads no thinking level'),
+      'INVALID_REQUEST',
+    )
   }
 
   /** The lifecycle manager for the current generation, rebuilt on config change. */
@@ -256,6 +302,10 @@ export class LlamaCppAdapter extends LlmAdapter {
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const connection = this.config.options()
+    // Refused before the pre-flight load, not after: a level this model's
+    // template cannot read is a caller error, and paying a multi-minute GGUF
+    // load first would only delay saying so.
+    this.assertEffortDeclared(connection, options)
     const apiKey = await this.config.resolveApiKey(connection)
     const lifecycle = this.lifecycleOf(connection)
     const consumer = new AbortController()

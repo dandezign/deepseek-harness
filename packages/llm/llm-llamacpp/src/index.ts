@@ -108,6 +108,7 @@ const catalogModel: z<LlamaCppCatalogModel> = z.object({
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
   inputModalities: z.array(z.union(['text', 'image'])),
+  reasoningEfforts: z.array(z.union(['low', 'medium', 'xhigh', 'off'])),
 })
 
 // Written out rather than spread from a shared shape: the config-catalog
@@ -240,7 +241,12 @@ function resolveModels(models: readonly LlamaCppCatalogModel[] | undefined): Lla
       ...model.description === undefined ? {} : { description: model.description },
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
-      ...model.inputModalities === undefined ? {} : { inputModalities: [...model.inputModalities] },
+      // An absent array arrives here as `[]` (schemastery normalizes it), so
+      // empty is read as "undeclared" rather than as "declares nothing" —
+      // otherwise every model that named neither would announce no modality
+      // and no thinking level at all.
+      ...(model.inputModalities ?? []).length === 0 ? {} : { inputModalities: [...model.inputModalities ?? []] },
+      ...(model.reasoningEfforts ?? []).length === 0 ? {} : { reasoningEfforts: [...model.reasoningEfforts ?? []] },
     }
   })
 }

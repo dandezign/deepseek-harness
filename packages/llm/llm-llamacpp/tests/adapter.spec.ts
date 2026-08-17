@@ -4,7 +4,7 @@ import LlmRuntime, { BlockAssembler, createUserMessage, resolveRetryPolicy, Reas
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import * as LlamaCpp from '../src/index.ts'
-import { LlamaCppAdapter, normalizeOrigin, resolveAdapterOptions } from '../src/index.ts'
+import { LlamaCppAdapter, normalizeOrigin, resolveAdapterOptions, resolveRoutes } from '../src/index.ts'
 import type { LlamaCppConnectionOptions } from '../src/index.ts'
 import { closeMockRouters, mockRouter } from './mock-router.ts'
 
@@ -238,5 +238,51 @@ describe('llm-llamacpp plugin through the runtime', () => {
     const resolved = resolveAdapterOptions({ baseURL: 'http://192.168.0.92:8080/v1/' })
     expect(resolved?.origin).toBe('http://192.168.0.92:8080')
     expect(resolveAdapterOptions({})).toBeUndefined()
+  })
+
+  it('serves a second server as its own route with its own lifecycle', async () => {
+    const first = await mockRouter({ models: [{ id: 'tiny' }], loadDelayMs: 10 })
+    const second = await mockRouter({ models: [{ id: 'other' }], loadDelayMs: 10 })
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlamaCpp, {
+      baseURL: first.url,
+      providers: { workstation: { baseURL: second.url, displayName: 'Workstation' } },
+    })
+
+    const directory = ctx.llm.listConfigurableProviders()
+    expect(directory.find(entry => entry.provider === 'llamacpp')?.settingsPath).toEqual([])
+    expect(directory.find(entry => entry.provider === 'workstation')).toMatchObject({
+      displayName: 'Workstation',
+      settingsPath: ['providers', 'workstation'],
+      credentialOptional: true,
+    })
+
+    const assembler = new BlockAssembler()
+    for await (const chunk of ctx.llm.stream({ provider: 'workstation', model: 'other', messages: userMessage('hi') })) {
+      assembler.push(chunk)
+    }
+    expect(assembler.finish).toEqual({ kind: 'stop' })
+    // Each route drove only its own server.
+    expect(second.loadCount.get('other')).toBe(1)
+    expect(first.loadCount.get('tiny')).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
+
+  it('refuses an endpoint declared both at the top level and as providers.llamacpp', () => {
+    expect(() => resolveRoutes({ baseURL: 'http://a.example:8080', providers: { llamacpp: { baseURL: 'http://b.example:8080' } } }))
+      .toThrow(/declared twice/)
+    // Either one alone is fine.
+    expect([...resolveRoutes({ baseURL: 'http://a.example:8080' }).keys()]).toEqual(['llamacpp'])
+    expect([...resolveRoutes({ providers: { llamacpp: { baseURL: 'http://b.example:8080' } } }).keys()]).toEqual(['llamacpp'])
+  })
+
+  it('leaves a named route without its own endpoint dormant', () => {
+    // $LLAMACPP_BASE_URL names one server, so it must not fill in here.
+    const environment = { get: (name: string) => name === 'LLAMACPP_BASE_URL' ? { value: 'http://env.example:8080' } : undefined }
+    const resolved = resolveRoutes({ providers: { workstation: { displayName: 'Workstation' } } }, environment)
+    expect(resolved.has('workstation')).toBe(false)
+    // The default route still takes it.
+    expect(resolveRoutes({}, environment).get('llamacpp')?.origin).toBe('http://env.example:8080')
   })
 })

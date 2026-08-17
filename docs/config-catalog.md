@@ -998,10 +998,25 @@ Requires: `llm`
 ```ts config-catalog
 /**
  * Plugin config, validated by the same-named schemastery schema and doubling
- * as the `llm-llamacpp` settings-section shape. Everything is optional:
- * without `baseURL` the plugin mounts dormant.
+ * as the `llm-llamacpp` settings-section shape. Everything is optional: with
+ * neither a top-level `baseURL` nor any `providers` entry the plugin mounts
+ * dormant.
  */
-export interface Config {
+export interface Config extends LlamaCppProviderProfile {
+  /**
+   * Additional servers, keyed by the provider route id each one owns. A
+   * second llama.cpp box is a second entry here rather than a second
+   * composition row; the top-level profile remains the `llamacpp` route.
+   */
+  providers?: Record<string, LlamaCppProviderProfile>
+}
+
+/**
+ * One llama.cpp server's settings. The plugin's own top level is a profile
+ * too — the single-server shape most deployments write — and `providers` adds
+ * further named routes beside it, each its own server with its own lifecycle.
+ */
+export interface LlamaCppProviderProfile {
   /** Server origin (`http://host:port`); a trailing `/v1` is tolerated and stripped. Falls back to $LLAMACPP_BASE_URL. */
   baseURL?: string
   /** Credential reference resolved per request (default `LLAMACPP_API_KEY`); a server without `--api-key` needs none. */
@@ -1047,7 +1062,7 @@ export interface LlamaCppCatalogModel {
 
 Depends on: [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
 
-Source: [`packages/llm/llm-llamacpp/src/index.ts:60`](../packages/llm/llm-llamacpp/src/index.ts)
+Source: [`packages/llm/llm-llamacpp/src/index.ts:95`](../packages/llm/llm-llamacpp/src/index.ts)
 
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 

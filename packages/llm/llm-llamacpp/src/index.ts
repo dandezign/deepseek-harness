@@ -53,11 +53,11 @@ const BASE_URL_ENV = 'LLAMACPP_BASE_URL'
 const PROVIDER = 'llamacpp'
 
 /**
- * Plugin config, validated by the same-named schemastery schema and doubling
- * as the `llm-llamacpp` settings-section shape. Everything is optional:
- * without `baseURL` the plugin mounts dormant.
+ * One llama.cpp server's settings. The plugin's own top level is a profile
+ * too — the single-server shape most deployments write — and `providers` adds
+ * further named routes beside it, each its own server with its own lifecycle.
  */
-export interface Config {
+export interface LlamaCppProviderProfile {
   /** Server origin (`http://host:port`); a trailing `/v1` is tolerated and stripped. Falls back to $LLAMACPP_BASE_URL. */
   baseURL?: string
   /** Credential reference resolved per request (default `LLAMACPP_API_KEY`); a server without `--api-key` needs none. */
@@ -86,12 +86,46 @@ export interface Config {
   retryPolicy?: RetryPolicyConfig
 }
 
+/**
+ * Plugin config, validated by the same-named schemastery schema and doubling
+ * as the `llm-llamacpp` settings-section shape. Everything is optional: with
+ * neither a top-level `baseURL` nor any `providers` entry the plugin mounts
+ * dormant.
+ */
+export interface Config extends LlamaCppProviderProfile {
+  /**
+   * Additional servers, keyed by the provider route id each one owns. A
+   * second llama.cpp box is a second entry here rather than a second
+   * composition row; the top-level profile remains the `llamacpp` route.
+   */
+  providers?: Record<string, LlamaCppProviderProfile>
+}
+
 const catalogModel: z<LlamaCppCatalogModel> = z.object({
   id: z.string().required(),
   name: z.string(),
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
+})
+
+// Written out rather than spread from a shared shape: the config-catalog
+// generator reads this source statically and requires plain keys, and the
+// duplication is what makes the generated per-server documentation complete.
+const profile: z<LlamaCppProviderProfile> = z.object({
+  baseURL: z.string(),
+  apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
+  displayName: z.string(),
+  autoLoad: z.boolean().default(true),
+  autoUnload: z.union(['never', 'on-switch']).default('never'),
+  loadTimeoutMs: z.number().step(1).min(1_000).max(MAX_TIMER_DELAY_MS).default(DEFAULT_LOAD_TIMEOUT_MS),
+  pollIntervalMs: z.number().step(1).min(100).max(60_000).default(DEFAULT_POLL_INTERVAL_MS),
+  watchEvents: z.boolean().default(true),
+  streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  defaultContextWindow: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_CONTEXT_WINDOW),
+  maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS),
+  models: z.array(catalogModel),
+  retryPolicy: RetryPolicySchema,
 })
 
 export const Config: z<Config> = z.object({
@@ -108,6 +142,7 @@ export const Config: z<Config> = z.object({
   maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS),
   models: z.array(catalogModel),
   retryPolicy: RetryPolicySchema,
+  providers: z.dict(profile).default({}),
 })
 
 /** The environment seam this resolver reads $LLAMACPP_BASE_URL through. */
@@ -122,7 +157,10 @@ export interface EnvironmentLookup {
  * @returns validated connection facts, or `undefined` when no endpoint is configured (dormant).
  * @throws Error when a configured endpoint is malformed (non-http scheme).
  */
-export function resolveAdapterOptions(config: Config, environment?: EnvironmentLookup): LlamaCppConnectionOptions | undefined {
+export function resolveAdapterOptions(
+  config: LlamaCppProviderProfile,
+  environment?: EnvironmentLookup,
+): LlamaCppConnectionOptions | undefined {
   const rawBase = config.baseURL
     ?? environment?.get(BASE_URL_ENV)?.value
   if (rawBase === undefined || rawBase.length === 0) return undefined
@@ -147,6 +185,47 @@ export function resolveAdapterOptions(config: Config, environment?: EnvironmentL
   }
 }
 
+/**
+ * Resolve every configured server into its provider route.
+ *
+ * The top-level profile is the `llamacpp` route, exactly as before this
+ * package understood more than one server; `providers` entries are further
+ * routes. Configuring both a top-level endpoint and a `providers.llamacpp`
+ * entry is refused rather than silently resolved one way, because the two
+ * would otherwise disagree about which server the default route addresses.
+ * @param config - the whole settings section.
+ * @param environment - optional launch-environment seam for $LLAMACPP_BASE_URL.
+ * @returns connection facts per route id, empty when nothing is configured (dormant).
+ * @throws Error on a malformed endpoint, an empty route id, or the ambiguous double declaration.
+ */
+export function resolveRoutes(
+  config: Config,
+  environment?: EnvironmentLookup,
+): Map<string, LlamaCppConnectionOptions> {
+  const routes = new Map<string, LlamaCppConnectionOptions>()
+  const named = config.providers ?? {}
+  const top = resolveAdapterOptions(config, environment)
+  if (top !== undefined) {
+    if (Object.hasOwn(named, PROVIDER)) {
+      throw new Error(
+        `llm-llamacpp: the endpoint is declared twice — at the top level and as providers."${PROVIDER}".`
+        + ` Keep one: move the top-level settings under providers."${PROVIDER}", or delete that entry`,
+      )
+    }
+    routes.set(PROVIDER, top)
+  }
+  for (const [route, entry] of Object.entries(named)) {
+    if (route.length === 0) throw new Error('llm-llamacpp: provider route ids must be non-empty')
+    // A named route states its own endpoint: $LLAMACPP_BASE_URL names one
+    // server, so letting it fill in here would silently point every
+    // endpointless route at the same box. Such an entry stays dormant.
+    const resolved = resolveAdapterOptions(entry)
+    if (resolved === undefined) continue
+    routes.set(route, { ...resolved, displayName: entry.displayName ?? route })
+  }
+  return routes
+}
+
 /** Resolve and detach the advisory model catalog. */
 function resolveModels(models: readonly LlamaCppCatalogModel[] | undefined): LlamaCppCatalogModel[] {
   const seen = new Set<string>()
@@ -167,12 +246,12 @@ function resolveModels(models: readonly LlamaCppCatalogModel[] | undefined): Lla
 export function apply(ctx: Context, config: Config): void {
   let current: () => Config = () => config
   let lastRaw: Config | undefined
-  let lastGood: LlamaCppConnectionOptions | undefined
-  const options = (): LlamaCppConnectionOptions | undefined => {
+  let lastGood: Map<string, LlamaCppConnectionOptions> | undefined
+  const routes = (): Map<string, LlamaCppConnectionOptions> => {
     const raw = current()
     if (raw === lastRaw && lastGood !== undefined) return lastGood
     try {
-      const next = resolveAdapterOptions(raw, launchEnvironmentOf(ctx))
+      const next = resolveRoutes(raw, launchEnvironmentOf(ctx))
       lastRaw = raw
       lastGood = next
       return next
@@ -184,7 +263,7 @@ export function apply(ctx: Context, config: Config): void {
       return lastGood
     }
   }
-  options()
+  routes()
 
   // The credential is optional: a llama.cpp server launched without
   // `--api-key` serves anonymous requests, so an unresolvable reference
@@ -205,77 +284,130 @@ export function apply(ctx: Context, config: Config): void {
   const resolveApiKey = async (connection: LlamaCppConnectionOptions): Promise<string | undefined> =>
     resolveKeyByRef(connection.apiKeyEnv)
 
-  const adapter = new LlamaCppAdapter({
-    options: () => options() ?? { origin: 'http://127.0.0.1:8080', apiKeyEnv: credentialRef(DEFAULT_API_KEY_ENV), displayName: 'llama.cpp', autoLoad: false, autoUnload: 'never', loadTimeoutMs: DEFAULT_LOAD_TIMEOUT_MS, pollIntervalMs: DEFAULT_POLL_INTERVAL_MS, watchEvents: true, maxTokens: DEFAULT_MAX_TOKENS, defaultContextWindow: DEFAULT_CONTEXT_WINDOW, models: [], streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS, retryPolicy: resolveRetryPolicy(undefined, 'llm-llamacpp: retryPolicy') },
+  /** Facts a route falls back to while its endpoint is absent (dormant). */
+  const dormantOptions = (route: string): LlamaCppConnectionOptions => ({
+    origin: 'http://127.0.0.1:8080',
+    apiKeyEnv: credentialRef(DEFAULT_API_KEY_ENV),
+    displayName: route === PROVIDER ? 'llama.cpp' : route,
+    autoLoad: false,
+    autoUnload: 'never',
+    loadTimeoutMs: DEFAULT_LOAD_TIMEOUT_MS,
+    pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
+    watchEvents: true,
+    maxTokens: DEFAULT_MAX_TOKENS,
+    defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
+    models: [],
+    streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+    retryPolicy: resolveRetryPolicy(undefined, 'llm-llamacpp: retryPolicy'),
+  })
+
+  /** One mounted route: its adapter, its registration, and the policy it was registered with. */
+  interface MountedRoute {
+    adapter: LlamaCppAdapter
+    registration: ReturnType<typeof ctx.llm.registerAdapter>
+    policy: unknown
+  }
+  const mounted = new Map<string, MountedRoute>()
+
+  /** Build the adapter for one route; its options are re-read per operation. */
+  const adapterFor = (route: string): LlamaCppAdapter => new LlamaCppAdapter({
+    // Read through by route id rather than closing over a snapshot, so a
+    // settings change reaches the next request without re-registration.
+    options: () => routes().get(route) ?? dormantOptions(route),
     resolveApiKey,
-    log: (message) => { ctx.logger.info(`llm-llamacpp: ${message}`) },
+    log: (message) => { ctx.logger.info(`llm-llamacpp: [${route}] ${message}`) },
     // Live load progress for consumers (a settings surface, a session UI):
     // emitted at each transition's commit point, never logged, and never
     // model-visible.
     onProgress: (transition) => {
-      ctx.emit('llm/model-load-progress', { provider: PROVIDER, ...transition })
+      ctx.emit('llm/model-load-progress', { provider: route, ...transition })
     },
   })
-  ctx.effect(() => () => { adapter.dispose() }, 'llm-llamacpp: adapter lifecycle teardown')
 
-  // The directory entry exists even while dormant, so configuration surfaces
-  // offer the llama.cpp card before any endpoint is stored. The credential is
-  // optional: a server launched without `--api-key` serves anonymous requests.
-  ctx.llm.registerConfigurableProviders([
-    {
+  ctx.effect(() => () => {
+    for (const entry of mounted.values()) entry.adapter.dispose()
+  }, 'llm-llamacpp: adapter lifecycle teardown')
+
+  /**
+   * The directory entries surfaces offer. The default route is listed even
+   * while dormant, so the llama.cpp card exists before any endpoint is
+   * stored; a named route only appears once configured, because nothing else
+   * would tell a surface it should exist. The credential is optional on all
+   * of them: a server launched without `--api-key` serves anonymous requests.
+   */
+  const syncDirectory = (resolved: Map<string, LlamaCppConnectionOptions>): void => {
+    const entries = [{
       provider: PROVIDER,
-      displayName: options()?.displayName ?? 'llama.cpp',
+      displayName: resolved.get(PROVIDER)?.displayName ?? 'llama.cpp',
       settingsNs: NS,
-      settingsPath: [],
+      settingsPath: [] as string[],
       credentialOptional: true,
-    },
-  ])
+    }]
+    for (const [route, connection] of resolved) {
+      if (route === PROVIDER) continue
+      entries.push({
+        provider: route,
+        displayName: connection.displayName,
+        settingsNs: NS,
+        settingsPath: ['providers', route],
+        credentialOptional: true,
+      })
+    }
+    ctx.llm.registerConfigurableProviders(entries)
+  }
 
-  // Route registration follows the endpoint: absent baseURL mounts zero
-  // routes (dormant), a retry-policy change replaces in place, and a
-  // disappearing baseURL releases the route without a gap the other way.
-  let registration: ReturnType<typeof ctx.llm.registerAdapter> | undefined
-  let registeredPolicy: unknown
+  // Route registration follows each endpoint: a route whose endpoint
+  // disappears is released and its lifecycle disposed, a new one is mounted,
+  // and a retry-policy change replaces in place.
   const syncRegistration = (): void => {
-    const resolved = options()
-    if (resolved === undefined) {
-      if (registration !== undefined) {
-        registration()
-        registration = undefined
-        registeredPolicy = undefined
-      }
-      return
+    const resolved = routes()
+    for (const [route, entry] of [...mounted]) {
+      if (resolved.has(route)) continue
+      entry.registration()
+      entry.adapter.dispose()
+      mounted.delete(route)
     }
-    if (registration === undefined) {
-      try {
-        registration = ctx.llm.registerAdapter([PROVIDER], adapter)
-        registeredPolicy = resolved.retryPolicy
-      } catch (error) {
-        if (error instanceof LlmError && error.code === 'DUPLICATE_ADAPTER') {
-          // The usual squatter is a hand-declared provider of the same id in
-          // the llm-pi-ai settings section (this package's documented
-          // adoption path); name the removal so the log line is actionable.
-          throw new LlmError(
-            `llm-llamacpp: ${error.message}; remove the duplicate "${PROVIDER}" entry from the llm-pi-ai settings section so this adapter can own the route`,
-            'DUPLICATE_ADAPTER',
-            { cause: error },
-          )
+    for (const [route, connection] of resolved) {
+      const existing = mounted.get(route)
+      if (existing === undefined) {
+        const adapter = adapterFor(route)
+        try {
+          mounted.set(route, {
+            adapter,
+            registration: ctx.llm.registerAdapter([route], adapter),
+            policy: connection.retryPolicy,
+          })
+        } catch (error) {
+          adapter.dispose()
+          if (error instanceof LlmError && error.code === 'DUPLICATE_ADAPTER') {
+            // The usual squatter is a hand-declared provider of the same id in
+            // the llm-pi-ai settings section (this package's documented
+            // adoption path); name the removal so the log line is actionable.
+            throw new LlmError(
+              `llm-llamacpp: ${error.message}; remove the duplicate "${route}" entry from the llm-pi-ai settings section so this adapter can own the route`,
+              'DUPLICATE_ADAPTER',
+              { cause: error },
+            )
+          }
+          throw error
         }
-        throw error
+        continue
       }
-      return
+      if (!deepEqualJson(connection.retryPolicy, existing.policy)) {
+        existing.registration.replace([route])
+        existing.policy = connection.retryPolicy
+      }
     }
-    if (!deepEqualJson(resolved.retryPolicy, registeredPolicy)) {
-      registration.replace([PROVIDER])
-      registeredPolicy = resolved.retryPolicy
-    }
+    syncDirectory(resolved)
   }
   syncRegistration()
 
   // Endpoint interrogation for the configuration card: live listing with the
   // capacities and modalities the generic OpenAI-compatible reader leaves behind.
   ctx.llm.registerModelDiscovery(NS, async (request: LlmModelDiscoveryRequest): Promise<readonly LlmDiscoveredModel[]> => {
-    const resolved = options()
+    // The draft the card shows wins; otherwise describe the route named, or
+    // the default one when the request names none.
+    const resolved = routes().get(request.provider ?? PROVIDER)
     const raw = request.baseURL ?? resolved?.origin
     if (raw === undefined || raw.length === 0) {
       throw new LlmError(

@@ -22,6 +22,11 @@ The chat wire (SSE framing, chunk translation, usage mapping, message serializat
     # defaultContextWindow: 32768
     # maxTokens: 8192
     # models: []                        # Fetch available models proposes entries with capacities
+    # A second box is another entry here, not another composition row.
+    # providers:
+    #   workstation:
+    #     baseURL: http://192.168.0.40:8080
+    #     displayName: Workstation
 ```
 
 `baseURL` is the server **origin**, not the OpenAI-compatible prefix: the control surface (`/props`, `/models/load`, `/models/unload`) lives beside `/v1`, not under it. A pasted `http://host:8080/v1` is normalized rather than rejected. Falls back to `$LLAMACPP_BASE_URL` from a trusted environment layer; without any endpoint the plugin mounts dormant — zero routes, the Models-page card still offered — and serves the route the moment the `llm-llamacpp:` settings section supplies one.
@@ -87,7 +92,7 @@ Recorded response content appends to the next request and does not invalidate it
 
 - **Vision input is not serialized** — discovery reports vision capability, but the v1 request path flattens text and rejects image content (`UNSUPPORTED_CONTENT`) with `resolveModel` declaring text-only, so the host refuses images before they are attached. OpenAI-style multimodal content parts are deferred.
 - **A dropped `/models/sse` connection loses in-flight transitions** — the watcher reconnects and the listing safety net converges the state, so a wait still settles; what a drop costs is promptness, not correctness. The watcher never becomes a dependency: set `watchEvents: false`, or run a build that 404s the stream, and the lifecycle polls exactly as it did before.
-- **One route per plugin instance** — the single `llamacpp` route serves one server origin; a second server is a second composition row with its own settings namespace expectations that this package does not yet offer (a `providers` dict, as `dsh-llm-pi-ai` does, is the shape).
+- **A named route states its own endpoint** — `$LLAMACPP_BASE_URL` names one server, so it fills in the default `llamacpp` route only; a `providers` entry without its own `baseURL` stays dormant rather than silently addressing the same box. Declaring the endpoint both at the top level and as `providers.llamacpp` is refused, because the two would disagree about which server the default route means.
 - **A pi-ai route named `llamacpp` collides** — `DUPLICATE_ADAPTER`, by design: remove the route out of the `llm-pi-ai:` section when adopting this adapter, because lifecycle management is why you are moving it. The registration failure names that removal in the host log.
 - **Thinking levels are the templates' own, not a universal scale** — only the Qwen3.8 family reads `reasoning_effort` (low/medium/xhigh; high and max are rejected with a server error, so the adapter refuses them client-side); Qwen3.6-era templates ignore the variable, so picking a level there changes nothing. Per-model vocabulary pinning is deferred until a second effort-aware family exists.
 - **Control calls share the chat timeout vocabulary** — `loadTimeoutMs` covers one whole load; there is no separate per-POST control timeout.

@@ -261,6 +261,47 @@ describe('ModelLifecycle', () => {
     expect(server.loadCount.get('a')).toBe(1)
   })
 
+  it('never unloads a model another caller is still loading', async () => {
+    // The loading model is held by an in-flight request from the moment its
+    // load starts, so a concurrent switch's hygiene must leave it alone.
+    const server = await mockRouter({ models: [{ id: 'a' }, { id: 'b' }], loadDelayMs: 15, maxInstances: 2 })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'on-switch',
+    })
+    lifecycle.acquire('a')
+    const loadingA = lifecycle.ensureLoaded('a')
+    await lifecycle.ensureLoaded('b')
+    await loadingA
+    await new Promise((resolve) => { setTimeout(resolve, 50) })
+    expect(server.unloadCount.get('a')).toBeUndefined()
+  })
+
+  it('stops driving the endpoint once disposed mid-load', async () => {
+    // A configuration change retires the manager while a load is in flight;
+    // it must not keep polling and re-issuing against the old origin.
+    const server = await mockRouter({ models: [{ id: 'slow' }], loadDelayMs: 10_000 })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 30_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+    })
+    const wait = lifecycle.ensureLoaded('slow')
+    await new Promise((resolve) => { setTimeout(resolve, 40) })
+    lifecycle.dispose()
+    await expect(wait).rejects.toMatchObject({ code: 'ABORTED' })
+    // The load POST count must not grow after disposal: no further polls, no
+    // re-issue on the next `unloaded` reading.
+    const issued = server.loadCount.get('slow')
+    await new Promise((resolve) => { setTimeout(resolve, 60) })
+    expect(server.loadCount.get('slow')).toBe(issued)
+  })
+
   it('reports an unreachable endpoint as a coded TRANSPORT error', async () => {
     // The adapter's pre-flight ensure-loaded runs outside its own mapping, so
     // an unwrapped rejection would reach callers as an unclassifiable TypeError.

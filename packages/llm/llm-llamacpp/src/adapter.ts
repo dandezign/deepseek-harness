@@ -235,11 +235,21 @@ export class LlamaCppAdapter extends LlmAdapter {
     const upstream = options.signal === undefined
       ? consumer.signal
       : AbortSignal.any([options.signal, consumer.signal])
-    if (connection.autoLoad) {
-      await lifecycle.ensureLoaded(options.model, upstream)
-      if (upstream.aborted) throw new LlmError('llama.cpp request aborted by caller', 'ABORTED')
-    }
+    // The refcount is taken BEFORE the pre-flight load, not after it: an
+    // unheld model is fair game for a concurrent switch's on-switch hygiene,
+    // which would unload the model this request just spent minutes loading
+    // and leave it to rediscover that through the not-loaded retry.
     lifecycle.acquire(options.model)
+    if (connection.autoLoad) {
+      try {
+        await lifecycle.ensureLoaded(options.model, upstream)
+        if (upstream.aborted) throw new LlmError('llama.cpp request aborted by caller', 'ABORTED')
+      } catch (error: unknown) {
+        // The stream's own release lives in a `finally` this throw precedes.
+        lifecycle.release(options.model)
+        throw error
+      }
+    }
     using watchdog = idleWatchdog(upstream, connection.streamIdleTimeoutMs, STREAM_IDLE_TIMEOUT_CODE)
     // Every sign of provider life re-arms the idle deadline: SSE keep-alive
     // comments during a long prefill, and each status poll of a load the

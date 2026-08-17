@@ -88,10 +88,25 @@ export class ModelLifecycle {
   private readonly refs = new Map<string, number>()
   /** Models this manager has seen reach `loaded`. */
   private readonly knownLoaded = new Set<string>()
+  /**
+   * Aborted by {@link dispose}. Every control call is scoped to it, so a
+   * manager retired by a configuration change stops driving the endpoint it
+   * was built for instead of polling and re-issuing loads against a server
+   * the user has already reconfigured away from.
+   */
+  private readonly closed = new AbortController()
   private disposed = false
 
   constructor(options: LifecycleOptions) {
     this.options = options
+  }
+
+  /**
+   * Bind a caller's cancellation to this manager's lifetime, so disposal
+   * settles the call even when the caller's own request is still live.
+   */
+  private scope(signal?: AbortSignal): AbortSignal {
+    return signal === undefined ? this.closed.signal : AbortSignal.any([signal, this.closed.signal])
   }
 
   private get log(): (message: string) => void {
@@ -121,6 +136,7 @@ export class ModelLifecycle {
    */
   async isRouter(signal?: AbortSignal): Promise<boolean> {
     if (this.router !== undefined) return this.router
+    const scoped = this.scope(signal)
     let response: Response
     try {
       // The probe carries the bearer token: a server launched with
@@ -129,10 +145,10 @@ export class ModelLifecycle {
       // need it most.
       response = await fetch(`${this.options.origin}/props`, {
         headers: await this.controlHeaders(),
-        ...signal === undefined ? {} : { signal },
+        signal: scoped,
       })
     } catch (error: unknown) {
-      if (signal?.aborted) throw error
+      if (scoped.aborted) throw error
       // A transport failure cannot tell an older build without the control
       // surface apart from a server that is not up yet, so this call answers
       // "not a router" WITHOUT caching it: caching would disable lifecycle
@@ -160,17 +176,18 @@ export class ModelLifecycle {
    * @throws LlmError `ABORTED`/`TRANSPORT`/`AUTH`/`SERVER` naming the endpoint on a failed listing.
    */
   async entries(signal?: AbortSignal): Promise<RouterModelEntry[]> {
+    const scoped = this.scope(signal)
     let response: Response
     try {
       response = await fetch(`${this.options.origin}/v1/models`, {
         headers: await this.controlHeaders(),
-        ...signal === undefined ? {} : { signal },
+        signal: scoped,
       })
     } catch (error: unknown) {
       // The adapter's pre-flight ensure-loaded runs outside its own error
       // mapping, so an unwrapped rejection would reach callers as a bare
       // TypeError/AbortError that no code-keyed layer can classify.
-      if (signal?.aborted) {
+      if (scoped.aborted) {
         throw new LlmError(`llama.cpp model listing from ${this.options.origin}/v1/models aborted`, 'ABORTED', { cause: error })
       }
       throw new LlmError(`llama.cpp model listing from ${this.options.origin}/v1/models failed`, 'TRANSPORT', { cause: error })
@@ -212,6 +229,9 @@ export class ModelLifecycle {
    * @throws LlmError `TIMEOUT` when the load exceeds `loadTimeoutMs`; `ABORTED`, `AUTH`, or `TRANSPORT` from the control calls.
    */
   async ensureLoaded(model: string, signal?: AbortSignal, onPoll?: () => void): Promise<void> {
+    // A retired manager owns no endpoint: hand the request through untouched
+    // rather than driving loads the adapter has already replaced.
+    if (this.disposed) return
     if (!(await this.isRouter(signal))) return
     const existing = this.inflight.get(model)
     if (existing !== undefined) {
@@ -262,31 +282,32 @@ export class ModelLifecycle {
    * model transitions nothing and reports nothing).
    */
   private async waitForLoaded(model: string, signal?: AbortSignal, onPoll?: () => void): Promise<boolean> {
-    const state = await this.status(model, signal)
+    const scoped = this.scope(signal)
+    const state = await this.status(model, scoped)
     if (state === 'loaded') return false
     this.report({ model, phase: 'loading' })
-    if (state !== 'loading') await this.postModelAction('/models/load', model, signal)
+    if (state !== 'loading') await this.postModelAction('/models/load', model, scoped)
     const deadline = Date.now() + this.options.loadTimeoutMs
     // Poll until loaded; a transition back to `unloaded` (crash, eviction)
     // re-issues the load once rather than waiting out the clock on a state
     // that will not fix itself.
     let reloaded = false
     while (true) {
-      if (signal?.aborted) throw new LlmError(`llama.cpp load of "${model}" aborted`, 'ABORTED')
+      if (scoped.aborted) throw new LlmError(`llama.cpp load of "${model}" aborted`, 'ABORTED')
       if (Date.now() >= deadline) {
         throw new LlmError(
           `llama.cpp model "${model}" did not become loaded within ${this.options.loadTimeoutMs}ms`,
           'TIMEOUT',
         )
       }
-      await sleep(this.options.pollIntervalMs, signal)
+      await sleep(this.options.pollIntervalMs, scoped)
       onPoll?.()
-      const next = await this.status(model, signal)
+      const next = await this.status(model, scoped)
       if (next === 'loaded') return true
       if (next === 'unloaded' && !reloaded) {
         reloaded = true
         this.log(`model "${model}" returned to unloaded while waiting; re-issuing load`)
-        await this.postModelAction('/models/load', model, signal)
+        await this.postModelAction('/models/load', model, scoped)
       }
     }
   }
@@ -294,16 +315,17 @@ export class ModelLifecycle {
   /** POST one `/models/load` or `/models/unload` action. */
   private async postModelAction(path: '/models/load' | '/models/unload', model: string, signal?: AbortSignal): Promise<void> {
     const body: ModelActionBody = { model }
+    const scoped = this.scope(signal)
     let response: Response
     try {
       response = await fetch(`${this.options.origin}${path}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...await this.controlHeaders() },
         body: JSON.stringify(body),
-        ...signal === undefined ? {} : { signal },
+        signal: scoped,
       })
     } catch (error: unknown) {
-      if (signal?.aborted) throw error
+      if (scoped.aborted) throw error
       throw new LlmError(`llama.cpp ${path} for "${model}" failed`, 'TRANSPORT', { cause: error })
     }
     if (!response.ok) {
@@ -339,12 +361,13 @@ export class ModelLifecycle {
    * @param signal - cancellation for the unload POST.
    */
   async unload(model: string, signal?: AbortSignal): Promise<void> {
+    if (this.disposed) return
     if (!(await this.isRouter(signal))) return
     try {
       await this.postModelAction('/models/unload', model, signal)
       this.knownLoaded.delete(model)
     } catch (error: unknown) {
-      if (signal?.aborted) return
+      if (this.scope(signal).aborted) return
       this.log(`unload of "${model}" failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -376,9 +399,14 @@ export class ModelLifecycle {
     else this.refs.set(model, count)
   }
 
-  /** Stop tracking state; in-flight waits observe their own aborts. */
+  /**
+   * Retire this manager: in-flight probes, polls, and load/unload POSTs are
+   * aborted rather than left to run out their own clocks against an endpoint
+   * this manager no longer represents.
+   */
   dispose(): void {
     this.disposed = true
+    this.closed.abort(new LlmError('llama.cpp lifecycle manager disposed', 'ABORTED'))
     this.inflight.clear()
     this.refs.clear()
     this.knownLoaded.clear()

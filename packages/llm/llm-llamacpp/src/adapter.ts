@@ -9,7 +9,7 @@
  * @module dsh-llm-llamacpp/adapter
  */
 
-import { attributionHeaders, LlmAdapter, LlmError, MODEL_NOT_LOADED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { attributionHeaders, contentHasImage, LlmAdapter, LlmError, MODEL_NOT_LOADED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -22,6 +22,7 @@ import { httpErrorCode } from '@deepseek-ai/dsh-llm-deepseek/src/adapter.ts'
 import { parseSse } from '@deepseek-ai/dsh-llm-deepseek/src/sse.ts'
 import { translate } from '@deepseek-ai/dsh-llm-deepseek/src/translate.ts'
 import type { WireError } from '@deepseek-ai/dsh-llm-deepseek/src/types.ts'
+import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { ModelLifecycle } from './lifecycle.ts'
@@ -40,6 +41,14 @@ export interface LlamaCppCatalogModel {
   contextWindow?: number
   /** Per-request output cap for this model; omission falls back to the route default. */
   maxTokens?: number
+  /**
+   * Request modalities this model accepts. Only a server started with an
+   * `--mmproj` projector can read images, and only for the model it projects,
+   * so this is the deployment's declaration rather than something the adapter
+   * can infer; `Fetch available models` proposes it from the live listing.
+   * Omitted means text-only.
+   */
+  inputModalities?: ('text' | 'image')[]
 }
 
 /** Validated connection facts for one operation (one configuration generation). */
@@ -83,6 +92,12 @@ export interface LlamaCppAdapterOptions {
    * hosted providers the DeepSeek adapter serves.
    */
   resolveApiKey: (connection: LlamaCppConnectionOptions) => Promise<string | undefined>
+  /**
+   * The attachment store image bytes are read through, resolved per request.
+   * `undefined` leaves the route text-only: image content then meets the
+   * shared wire's refusal rather than being flattened away.
+   */
+  resolveAttachments?: () => AttachmentStore | undefined
   /** Diagnostic sink for lifecycle transitions. */
   log?: (message: string) => void
   /** Live load-transition sink (host progress notifications), shared by every request. */
@@ -129,8 +144,9 @@ function modelInfo(provider: string, model: LlamaCppCatalogModel): LlmModelInfo 
     id: model.id,
     name: model.name ?? model.id,
     ...model.description === undefined ? {} : { description: model.description },
-    // v1 of this adapter serializes text only; vision input is deferred work.
-    inputModalities: ['text'],
+    // A model reads images only where the deployment declared it, because
+    // only a server started with the matching `--mmproj` projector can.
+    inputModalities: model.inputModalities ?? ['text'],
   }
 }
 
@@ -196,9 +212,10 @@ export class LlamaCppAdapter extends LlmAdapter {
       ?? connection.defaultContextWindow
     return Promise.resolve({
       ...configured === undefined
-        // The v1 wire route is text-only regardless of catalog membership;
-        // "unknown" modalities would let the host admit images the
-        // serializer must then reject mid-turn.
+        // An unconfigured model declares text-only rather than "unknown":
+        // nothing here knows whether the server has a projector for it, and
+        // "unknown" would let the host admit images the request must then
+        // fail on.
         ? { provider, id: model, name: model, inputModalities: ['text' as const] }
         : modelInfo(provider, configured),
       context: { contextWindow },
@@ -340,7 +357,12 @@ export class LlamaCppAdapter extends LlmAdapter {
     apiKey: string | undefined,
     onComment: () => void,
   ): AsyncIterable<StreamChunk> {
-    const body = serializeRequest(options)
+    // The store is consulted only for a request that actually carries an
+    // image, so a text-only turn never touches the attachment plane.
+    const attachments = contentHasImage(options.messages.flatMap(message => message.content))
+      ? this.config.resolveAttachments?.()
+      : undefined
+    const body = await serializeRequest(options, attachments)
     const payload = JSON.stringify(body)
     const headers = {
       'content-type': 'application/json',

@@ -107,6 +107,7 @@ const catalogModel: z<LlamaCppCatalogModel> = z.object({
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
+  inputModalities: z.array(z.union(['text', 'image'])),
 })
 
 // Written out rather than spread from a shared shape: the config-catalog
@@ -239,6 +240,7 @@ function resolveModels(models: readonly LlamaCppCatalogModel[] | undefined): Lla
       ...model.description === undefined ? {} : { description: model.description },
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+      ...model.inputModalities === undefined ? {} : { inputModalities: [...model.inputModalities] },
     }
   })
 }
@@ -315,6 +317,7 @@ export function apply(ctx: Context, config: Config): void {
     // settings change reaches the next request without re-registration.
     options: () => routes().get(route) ?? dormantOptions(route),
     resolveApiKey,
+    resolveAttachments: () => ctx.get('attachments'),
     log: (message) => { ctx.logger.info(`llm-llamacpp: [${route}] ${message}`) },
     // Live load progress for consumers (a settings surface, a session UI):
     // emitted at each transition's commit point, never logged, and never

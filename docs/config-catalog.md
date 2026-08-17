@@ -1057,6 +1057,14 @@ export interface LlamaCppCatalogModel {
   contextWindow?: number
   /** Per-request output cap for this model; omission falls back to the route default. */
   maxTokens?: number
+  /**
+   * Request modalities this model accepts. Only a server started with an
+   * `--mmproj` projector can read images, and only for the model it projects,
+   * so this is the deployment's declaration rather than something the adapter
+   * can infer; `Fetch available models` proposes it from the live listing.
+   * Omitted means text-only.
+   */
+  inputModalities?: ('text' | 'image')[]
 }
 ```
 

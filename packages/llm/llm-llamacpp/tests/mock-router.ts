@@ -5,8 +5,14 @@ const servers: Server[] = []
 
 /** Close every router opened since the last call; run from each spec's afterEach. */
 export async function closeMockRouters(): Promise<void> {
+  // Held-open SSE responses are closed first: `server.close` waits out live
+  // connections, so a lingering stream would hang every spec's teardown.
+  for (const release of openStreams.splice(0)) release()
   await Promise.all(servers.splice(0).map(server => new Promise(resolve => server.close(resolve))))
 }
+
+/** Teardown hooks that end each router's open event streams. */
+const openStreams: (() => void)[] = []
 
 /**
  * Reserve a port by binding it and letting go, so a spec can address an
@@ -54,6 +60,10 @@ export interface MockRouterOptions {
   failChatNotLoadedOnce?: string[]
   /** Listen on this exact port instead of an arbitrary free one (see {@link freePort}). */
   port?: number
+  /** `/models/sse` behaviour: `stream` (default) or `absent` (an older build 404s it). */
+  sse?: 'stream' | 'absent'
+  /** `meta.n_ctx` reported on each model's `loaded` event. */
+  loadedContextWindow?: number
 }
 
 /** A live mock of a llama.cpp multi-model router. */
@@ -94,17 +104,33 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
   const loadTimers = new Set<NodeJS.Timeout>()
   const failOnce = new Set(options.failChatNotLoadedOnce ?? [])
 
+  /** Open `/models/sse` responses, each fed every status change. */
+  const listeners = new Set<ServerResponse>()
+
+  const publish = (model: string, next: 'unloaded' | 'loading' | 'loaded'): void => {
+    const info = next === 'loaded' && options.loadedContextWindow !== undefined
+      ? { info: { id: model, meta: { n_ctx: options.loadedContextWindow } } }
+      : {}
+    const payload = JSON.stringify({ model, event: 'status_change', data: { status: next, ...info } })
+    for (const listener of listeners) listener.write(`data: ${payload}\n\n`)
+  }
+
+  const setStatus = (model: string, next: 'unloaded' | 'loading' | 'loaded'): void => {
+    status.set(model, next)
+    publish(model, next)
+  }
+
   const transition = (model: string, next: 'loaded'): void => {
-    status.set(model, 'loading')
+    setStatus(model, 'loading')
     const timer = setTimeout(() => {
       loadTimers.delete(timer)
       if ((options.maxInstances ?? 1) === 1) {
         // The router's own eviction: loading B at max_instances 1 unloads A.
         for (const other of status.keys()) {
-          if (other !== model && status.get(other) !== 'unloaded') status.set(other, 'unloaded')
+          if (other !== model && status.get(other) !== 'unloaded') setStatus(other, 'unloaded')
         }
       }
-      status.set(model, next)
+      setStatus(model, next)
     }, options.loadDelayMs ?? 25)
     loadTimers.add(timer)
   }
@@ -153,6 +179,27 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
       return
     }
 
+    if (url === '/models/sse' && request.method === 'GET') {
+      if (!authorized) {
+        response.writeHead(401, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: { message: 'invalid api key', type: 'invalid_request_error', code: 401 } }))
+        return
+      }
+      if ((options.sse ?? 'stream') === 'absent') {
+        response.writeHead(404, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: { message: 'File Not Found', type: 'not_found_error', code: 404 } }))
+        return
+      }
+      response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+      // The live router opens with each model's current status.
+      for (const [model, value] of status) {
+        response.write(`data: ${JSON.stringify({ model, event: 'model_status', data: { status: value } })}\n\n`)
+      }
+      listeners.add(response)
+      request.on('close', () => { listeners.delete(response) })
+      return
+    }
+
     if ((url === '/models/load' || url === '/models/unload') && request.method === 'POST') {
       if (!authorized) {
         response.writeHead(401, { 'content-type': 'application/json' })
@@ -166,7 +213,7 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
         if (status.get(model) !== 'loaded' && status.get(model) !== 'loading') transition(model, 'loaded')
       } else {
         unloadCount.set(model, (unloadCount.get(model) ?? 0) + 1)
-        status.set(model, 'unloaded')
+        setStatus(model, 'unloaded')
       }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end('{"success":true}')
@@ -212,6 +259,10 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
 
   await new Promise<void>((resolve) => { server.listen(options.port ?? 0, '127.0.0.1', resolve) })
   servers.push(server)
+  openStreams.push(() => {
+    for (const listener of listeners) listener.end()
+    listeners.clear()
+  })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('no port')
   return {
@@ -221,6 +272,9 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
     unloadCount,
     close: () => {
       for (const timer of loadTimers) clearTimeout(timer)
+      // An open SSE response keeps the server from closing.
+      for (const listener of listeners) listener.end()
+      listeners.clear()
       return new Promise((resolve) => { server.close(() => { resolve() }) })
     },
   }

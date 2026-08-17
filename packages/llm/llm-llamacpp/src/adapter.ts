@@ -58,6 +58,8 @@ export interface LlamaCppConnectionOptions {
   loadTimeoutMs: number
   /** Poll interval while awaiting a model status transition. */
   pollIntervalMs: number
+  /** Whether to watch `/models/sse` for transitions instead of polling at full rate. */
+  watchEvents: boolean
   /** Default per-request output cap; explicit request values win. */
   maxTokens: number
   /** Positive context capacity used when the selected model has no exact value. */
@@ -185,7 +187,13 @@ export class LlamaCppAdapter extends LlmAdapter {
   ): Promise<LlmResolvedModelInfo> {
     const connection = this.config.options()
     const configured = connection.models.find(entry => entry.id === model)
-    const contextWindow = configured?.contextWindow ?? connection.defaultContextWindow
+    // Precedence is deliberate-to-guessed: what the deployment configured, then
+    // the capacity the router disclosed when it loaded the model (`meta.n_ctx`,
+    // exact and the only source for a model launched without `--ctx-size`),
+    // then the route-wide default.
+    const contextWindow = configured?.contextWindow
+      ?? this.lifecycleOf(connection).observedContextWindow(model)
+      ?? connection.defaultContextWindow
     return Promise.resolve({
       ...configured === undefined
         // The v1 wire route is text-only regardless of catalog membership;
@@ -210,6 +218,7 @@ export class LlamaCppAdapter extends LlmAdapter {
       connection.autoUnload,
       connection.loadTimeoutMs,
       connection.pollIntervalMs,
+      connection.watchEvents,
     ])
     if (this.lifecycle === undefined || this.lifecycleKey !== key) {
       this.lifecycle?.dispose()
@@ -218,6 +227,7 @@ export class LlamaCppAdapter extends LlmAdapter {
         authorize: () => this.config.resolveApiKey(connection),
         loadTimeoutMs: connection.loadTimeoutMs,
         pollIntervalMs: connection.pollIntervalMs,
+        watchEvents: connection.watchEvents,
         autoUnload: connection.autoUnload,
         log: this.config.log,
         onProgress: this.config.onProgress,

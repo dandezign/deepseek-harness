@@ -1018,6 +1018,8 @@ export interface Config {
   loadTimeoutMs?: number
   /** Poll interval for model status transitions in ms (default 1,000, minimum 100). */
   pollIntervalMs?: number
+  /** Watch `GET /models/sse` for transitions, relaxing the listing poll to a safety net (default true). */
+  watchEvents?: boolean
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
   /** Positive context capacity used when the selected model has no exact value (default 32,768). */

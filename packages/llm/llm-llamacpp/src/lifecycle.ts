@@ -21,6 +21,7 @@
  */
 
 import { LlmError } from '@deepseek-ai/dsh-llm'
+import { ModelStatusWatcher } from './watcher.ts'
 import type { ModelActionBody, ModelActionReply, ModelsReply, PropsReply, RouterModelEntry } from './types.ts'
 
 /** Live status values a router reports for one model entry. */
@@ -43,6 +44,13 @@ export interface LifecycleOptions {
   pollIntervalMs: number
   /** Whether a successful switch unloads the previously resident model. */
   autoUnload: 'never' | 'on-switch'
+  /**
+   * Whether to watch `GET /models/sse` for transitions instead of polling
+   * `/v1/models` at full rate. The watcher is an accelerator, never a
+   * dependency: polling continues underneath at a relaxed interval, so an
+   * older build without the stream behaves exactly as before (default true).
+   */
+  watchEvents?: boolean | undefined
   /** Diagnostic sink for load/unload transitions. */
   log?: ((message: string) => void) | undefined
   /**
@@ -95,10 +103,33 @@ export class ModelLifecycle {
    * the user has already reconfigured away from.
    */
   private readonly closed = new AbortController()
+  /** Event-stream accelerator; absent when the deployment opted out. */
+  private readonly watcher: ModelStatusWatcher | undefined
   private disposed = false
 
   constructor(options: LifecycleOptions) {
     this.options = options
+    this.watcher = options.watchEvents === false
+      ? undefined
+      : new ModelStatusWatcher({
+        origin: options.origin,
+        authorize: options.authorize,
+        // A dropped stream costs only the relaxed poll until it returns, so
+        // reconnect at the poll cadence rather than racing it.
+        reconnectDelayMs: Math.max(options.pollIntervalMs, 500),
+        log: options.log,
+      })
+  }
+
+  /**
+   * Poll cadence for the current wait. A live stream reports every transition
+   * the moment it happens, so the listing drops back to a slow safety net
+   * that only has to cover a silent drop; without one it carries the wait.
+   */
+  private get pollDelayMs(): number {
+    return this.watcher?.connected === true
+      ? Math.max(this.options.pollIntervalMs * 10, 5_000)
+      : this.options.pollIntervalMs
   }
 
   /**
@@ -166,6 +197,9 @@ export class ModelLifecycle {
     } catch {
       this.router = false
     }
+    // Only a confirmed router serves the stream; a plain server would just
+    // 404 it, and this manager will never wait on a load there anyway.
+    if (this.router) this.watcher?.start()
     return this.router
   }
 
@@ -210,8 +244,22 @@ export class ModelLifecycle {
    * @returns the live status of that model.
    */
   async status(model: string, signal?: AbortSignal): Promise<ModelState> {
+    // A connected stream has already been told what the listing would say.
+    const live = this.watcher?.statusOf(model)
+    if (live !== undefined) return live
     const entries = await this.entries(signal)
     return statusOfEntry(entries.find(entry => entry.id === model))
+  }
+
+  /**
+   * Authoritative context capacity for one model, when the router disclosed
+   * it. Only the `loaded` event carries `meta.n_ctx`, which is the real
+   * capacity for a model whose launch argv omits `--ctx-size`.
+   * @param model - model id to read.
+   * @returns the observed capacity, or `undefined` when never disclosed.
+   */
+  observedContextWindow(model: string): number | undefined {
+    return this.watcher?.contextWindowOf(model)
   }
 
   /**
@@ -300,7 +348,16 @@ export class ModelLifecycle {
           'TIMEOUT',
         )
       }
-      await sleep(this.options.pollIntervalMs, scoped)
+      // Whichever comes first: the stream reporting a transition, or the
+      // safety-net listing coming due. With no stream the race degenerates to
+      // the timer alone, which is the original polling behaviour. The delay is
+      // capped by the time left, because the deadline is only tested between
+      // waits — a relaxed safety net must not overshoot the load timeout.
+      const remaining = deadline - Date.now()
+      await Promise.race([
+        sleep(Math.max(Math.min(this.pollDelayMs, remaining), 1), scoped),
+        this.watcher?.changed(scoped) ?? new Promise<void>(() => { /* never */ }),
+      ])
       onPoll?.()
       const next = await this.status(model, scoped)
       if (next === 'loaded') return true
@@ -406,6 +463,7 @@ export class ModelLifecycle {
    */
   dispose(): void {
     this.disposed = true
+    this.watcher?.close()
     this.closed.abort(new LlmError('llama.cpp lifecycle manager disposed', 'ABORTED'))
     this.inflight.clear()
     this.refs.clear()

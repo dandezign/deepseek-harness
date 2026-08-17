@@ -302,6 +302,51 @@ describe('ModelLifecycle', () => {
     expect(server.loadCount.get('slow')).toBe(issued)
   })
 
+  it('settles a load from the event stream without polling the listing', async () => {
+    // pollIntervalMs is far longer than the load: only the stream can settle
+    // this wait inside the timeout, so finishing proves events drove it.
+    const server = await mockRouter({ models: [{ id: 'tiny' }], loadDelayMs: 40, loadedContextWindow: 8192 })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 3_000,
+      pollIntervalMs: 60_000,
+      autoUnload: 'never',
+    })
+    await lifecycle.ensureLoaded('tiny')
+    expect(server.loadCount.get('tiny')).toBe(1)
+    // The loaded event's meta.n_ctx is the authoritative capacity.
+    expect(lifecycle.observedContextWindow('tiny')).toBe(8192)
+  })
+
+  it('falls back to polling on a build whose /models/sse is absent', async () => {
+    const server = await mockRouter({ models: [{ id: 'tiny' }], loadDelayMs: 30, sse: 'absent' })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 3_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+    })
+    await lifecycle.ensureLoaded('tiny')
+    expect(await lifecycle.status('tiny')).toBe('loaded')
+    expect(lifecycle.observedContextWindow('tiny')).toBeUndefined()
+  })
+
+  it('keeps polling as the safety net when watching is switched off', async () => {
+    const server = await mockRouter({ models: [{ id: 'tiny' }], loadDelayMs: 30 })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 3_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+      watchEvents: false,
+    })
+    await lifecycle.ensureLoaded('tiny')
+    expect(await lifecycle.status('tiny')).toBe('loaded')
+  })
+
   it('reports an unreachable endpoint as a coded TRANSPORT error', async () => {
     // The adapter's pre-flight ensure-loaded runs outside its own mapping, so
     // an unwrapped rejection would reach callers as an unclassifiable TypeError.

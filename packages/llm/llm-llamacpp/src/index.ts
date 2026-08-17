@@ -72,6 +72,8 @@ export interface Config {
   loadTimeoutMs?: number
   /** Poll interval for model status transitions in ms (default 1,000, minimum 100). */
   pollIntervalMs?: number
+  /** Watch `GET /models/sse` for transitions, relaxing the listing poll to a safety net (default true). */
+  watchEvents?: boolean
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
   /** Positive context capacity used when the selected model has no exact value (default 32,768). */
@@ -100,6 +102,7 @@ export const Config: z<Config> = z.object({
   autoUnload: z.union(['never', 'on-switch']).default('never'),
   loadTimeoutMs: z.number().step(1).min(1_000).max(MAX_TIMER_DELAY_MS).default(DEFAULT_LOAD_TIMEOUT_MS),
   pollIntervalMs: z.number().step(1).min(100).max(60_000).default(DEFAULT_POLL_INTERVAL_MS),
+  watchEvents: z.boolean().default(true),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
   defaultContextWindow: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_CONTEXT_WINDOW),
   maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS),
@@ -135,6 +138,7 @@ export function resolveAdapterOptions(config: Config, environment?: EnvironmentL
     autoUnload: config.autoUnload ?? 'never',
     loadTimeoutMs: config.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS,
     pollIntervalMs: config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+    watchEvents: config.watchEvents ?? true,
     maxTokens: config.maxTokens ?? DEFAULT_MAX_TOKENS,
     defaultContextWindow: config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
     models: resolveModels(config.models),
@@ -202,7 +206,7 @@ export function apply(ctx: Context, config: Config): void {
     resolveKeyByRef(connection.apiKeyEnv)
 
   const adapter = new LlamaCppAdapter({
-    options: () => options() ?? { origin: 'http://127.0.0.1:8080', apiKeyEnv: credentialRef(DEFAULT_API_KEY_ENV), displayName: 'llama.cpp', autoLoad: false, autoUnload: 'never', loadTimeoutMs: DEFAULT_LOAD_TIMEOUT_MS, pollIntervalMs: DEFAULT_POLL_INTERVAL_MS, maxTokens: DEFAULT_MAX_TOKENS, defaultContextWindow: DEFAULT_CONTEXT_WINDOW, models: [], streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS, retryPolicy: resolveRetryPolicy(undefined, 'llm-llamacpp: retryPolicy') },
+    options: () => options() ?? { origin: 'http://127.0.0.1:8080', apiKeyEnv: credentialRef(DEFAULT_API_KEY_ENV), displayName: 'llama.cpp', autoLoad: false, autoUnload: 'never', loadTimeoutMs: DEFAULT_LOAD_TIMEOUT_MS, pollIntervalMs: DEFAULT_POLL_INTERVAL_MS, watchEvents: true, maxTokens: DEFAULT_MAX_TOKENS, defaultContextWindow: DEFAULT_CONTEXT_WINDOW, models: [], streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS, retryPolicy: resolveRetryPolicy(undefined, 'llm-llamacpp: retryPolicy') },
     resolveApiKey,
     log: (message) => { ctx.logger.info(`llm-llamacpp: ${message}`) },
     // Live load progress for consumers (a settings surface, a session UI):

@@ -17,7 +17,8 @@ The chat wire (SSE framing, chunk translation, usage mapping, message serializat
     # autoLoad: true                    # ensure-loaded before each request (default)
     # autoUnload: on-switch             # never (default) | on-switch
     # loadTimeoutMs: 600000             # cold GGUF loads take minutes
-    # pollIntervalMs: 1000
+    # pollIntervalMs: 1000              # listing safety net; /models/sse drives transitions
+    # watchEvents: true                 # watch /models/sse instead of polling at full rate
     # defaultContextWindow: 32768
     # maxTokens: 8192
     # models: []                        # Fetch available models proposes entries with capacities
@@ -85,7 +86,7 @@ Recorded response content appends to the next request and does not invalidate it
 ## Known Limitations and Deferred Work
 
 - **Vision input is not serialized** — discovery reports vision capability, but the v1 request path flattens text and rejects image content (`UNSUPPORTED_CONTENT`) with `resolveModel` declaring text-only, so the host refuses images before they are attached. OpenAI-style multimodal content parts are deferred.
-- **Readiness polls rather than watching `/models/sse`** — the event stream is parsed (`parseModelEvent`, including the loaded event's authoritative `meta.n_ctx`) but the lifecycle polls `/v1/models` per `pollIntervalMs`; an SSE watcher with reconnect is deferred.
+- **A dropped `/models/sse` connection loses in-flight transitions** — the watcher reconnects and the listing safety net converges the state, so a wait still settles; what a drop costs is promptness, not correctness. The watcher never becomes a dependency: set `watchEvents: false`, or run a build that 404s the stream, and the lifecycle polls exactly as it did before.
 - **One route per plugin instance** — the single `llamacpp` route serves one server origin; a second server is a second composition row with its own settings namespace expectations that this package does not yet offer (a `providers` dict, as `dsh-llm-pi-ai` does, is the shape).
 - **A pi-ai route named `llamacpp` collides** — `DUPLICATE_ADAPTER`, by design: remove the route out of the `llm-pi-ai:` section when adopting this adapter, because lifecycle management is why you are moving it. The registration failure names that removal in the host log.
 - **Thinking levels are the templates' own, not a universal scale** — only the Qwen3.8 family reads `reasoning_effort` (low/medium/xhigh; high and max are rejected with a server error, so the adapter refuses them client-side); Qwen3.6-era templates ignore the variable, so picking a level there changes nothing. Per-model vocabulary pinning is deferred until a second effort-aware family exists.

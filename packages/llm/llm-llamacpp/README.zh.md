@@ -17,7 +17,8 @@
     # autoLoad: true                    # ensure-loaded before each request (default)
     # autoUnload: on-switch             # never (default) | on-switch
     # loadTimeoutMs: 600000             # cold GGUF loads take minutes
-    # pollIntervalMs: 1000
+    # pollIntervalMs: 1000              # listing safety net; /models/sse drives transitions
+    # watchEvents: true                 # watch /models/sse instead of polling at full rate
     # defaultContextWindow: 32768
     # maxTokens: 8192
     # models: []                        # Fetch available models proposes entries with capacities
@@ -85,7 +86,7 @@
 ## Known Limitations and Deferred Work
 
 - **视觉输入不参与序列化** —— 发现会报告视觉能力，但 v1 请求路径只展平文本并以 `UNSUPPORTED_CONTENT` 拒绝图像内容，`resolveModel` 声明纯文本使宿主在附加前即拒绝图像。OpenAI 风格多模态 content parts 有待后续。
-- **就绪采用轮询而非观察 `/models/sse`** —— 事件流可被解析（`parseModelEvent`，含 loaded 事件权威的 `meta.n_ctx`），但生命周期按 `pollIntervalMs` 轮询 `/v1/models`；带重连的 SSE 观察者有待后续。
+- **`/models/sse` 连接断开会丢失在途转移** —— 观察者会重连，列表安全网也会收敛状态，因此等待仍会落定；断开损失的是及时性而非正确性。观察者绝不会成为依赖：设 `watchEvents: false`，或运行一个对该流返回 404 的构建，生命周期便与从前完全一样地轮询。
 - **每个插件实例一个路由** —— 唯一的 `llamacpp` 路由服务一个服务器 origin；第二台服务器需要第二个组合行，而本包尚未提供其预期的独立 settings 命名空间（`dsh-llm-pi-ai` 式的 `providers` 字典是那个形状）。
 - **名为 `llamacpp` 的 pi-ai 路由会冲突** —— `DUPLICATE_ADAPTER`，这是设计使然：采用本适配器时把路由移出 `llm-pi-ai:` 小节，因为生命周期管理正是你迁移它的原因。注册失败会在宿主日志中点名这次移除。
 - **思考级别是模板自身的，不是通用刻度** —— 只有 Qwen3.8 系读取 `reasoning_effort`（low/medium/xhigh；high 与 max 被以服务器错误拒绝，因此适配器在客户端即拒绝）；Qwen3.6 时代模板忽略该变量，在那里选择级别不会有任何变化。按模型固定词汇有待第二个支持 effort 的系别出现再做。

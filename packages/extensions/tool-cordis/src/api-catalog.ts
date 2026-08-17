@@ -2614,6 +2614,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
+    name: 'llm/model-load-progress',
+    mode: 'emit',
+    signature: '\'llm/model-load-progress\'(progress: LlmModelLoadProgress): void',
+    summary: 'One live model-load transition reported by an adapter that owns model lifecycle (for example a llama.cpp router loading the model a request targets).',
+    description: 'One live model-load transition reported by an adapter that owns model lifecycle (for example a llama.cpp router loading the model a request targets). Transport progress only: never model input, never logged. Emitted at each transition\'s commit point — when the load starts, and when it settles ready or failed.',
+    parameters: [{ name: 'progress', description: 'the transition, JSON-safe.' }],
+  },
+  {
     name: 'llm/stream',
     mode: 'waterfall',
     signature: '\'llm/stream\'(this: LlmRuntime, options: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk>',
@@ -3607,11 +3615,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmConfigurableProvider',
-    declaration: 'export interface LlmConfigurableProvider {\n    provider: string;\n    displayName: string;\n    settingsNs: string;\n    settingsPath: readonly string[];\n    declared?: boolean;\n}',
+    declaration: 'export interface LlmConfigurableProvider {\n    provider: string;\n    displayName: string;\n    settingsNs: string;\n    settingsPath: readonly string[];\n    declared?: boolean;\n    credentialOptional?: boolean;\n}',
   },
   {
     name: 'LlmDiscoveredModel',
-    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n}',
+    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    description?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    inputModalities?: readonly ModelModality[];\n    residency?: \'loaded\' | \'loading\' | \'unloaded\' | \'unloading\';\n}',
   },
   {
     name: 'LlmFailure',
@@ -3628,6 +3636,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LlmModelInfo',
     declaration: 'export interface LlmModelInfo {\n    provider: string;\n    id: string;\n    name: string;\n    description?: string;\n    inputModalities?: readonly ModelModality[];\n}',
+  },
+  {
+    name: 'LlmModelLoadProgress',
+    declaration: 'export interface LlmModelLoadProgress {\n    readonly provider: string;\n    readonly model: string;\n    readonly phase: \'loading\' | \'ready\' | \'failed\';\n    readonly message?: string;\n}',
   },
   {
     name: 'LlmModelReasoningInfo',

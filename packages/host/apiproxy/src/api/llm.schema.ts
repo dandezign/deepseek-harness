@@ -41,8 +41,11 @@ export const llmModelsValueSchema = z.object({
 export const discoveredModelViewSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
   contextWindow: z.number().int().positive().optional(),
   maxTokens: z.number().int().positive().optional(),
+  inputModalities: z.array(z.string().min(1)).optional(),
+  residency: z.enum(['loaded', 'loading', 'unloaded', 'unloading']).optional(),
 }) satisfies z.ZodType<Wire<DiscoveredModelView>>
 
 /** llm.discoverModels request payload. */

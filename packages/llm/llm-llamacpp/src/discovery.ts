@@ -13,12 +13,24 @@ import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-llm'
 import type { ModelEvent, ModelsReply, RouterModelEntry } from './types.ts'
 
-/** Discovery output: candidates plus the extra facts llama.cpp discloses. */
+/**
+ * Discovery output. Both extras llama.cpp discloses — declared modalities and
+ * live residency — are the shared candidate fields, so an adopting surface
+ * receives them without this package owning a parallel vocabulary.
+ */
 export interface DiscoveredRouterModel extends LlmDiscoveredModel {
-  /** Input modalities derived from `architecture.input_modalities`. */
+  /** Input modalities derived from `architecture.input_modalities`; always determined. */
   inputModalities: readonly ('text' | 'image')[]
-  /** Live status when the endpoint reports one (`unloaded`/`loading`/`loaded`). */
-  status?: string | undefined
+}
+
+/** Live residency values a router reports, narrowed off the wire's `unknown`. */
+const RESIDENCY = new Set(['loaded', 'loading', 'unloaded', 'unloading'])
+
+/** Narrow a listing entry's reported status onto the shared residency vocabulary. */
+function residencyOf(value: unknown): LlmDiscoveredModel['residency'] {
+  return typeof value === 'string' && RESIDENCY.has(value)
+    ? value as NonNullable<LlmDiscoveredModel['residency']>
+    : undefined
 }
 
 /**
@@ -82,13 +94,13 @@ export function parseModelsReply(reply: unknown): DiscoveredRouterModel[] {
     if (row === null || typeof row !== 'object') continue
     const entry = row as RouterModelEntry
     if (typeof entry.id !== 'string' || entry.id.length === 0) continue
-    const status = entry.status?.value
+    const residency = residencyOf(entry.status?.value)
     const modalities = modalitiesOf(entry)
     const contextWindow = contextWindowOf(entry)
     models.push({
       id: entry.id,
       inputModalities: modalities,
-      ...typeof status === 'string' ? { status } : {},
+      ...residency !== undefined ? { residency } : {},
       ...contextWindow !== undefined ? { contextWindow } : {},
     })
   }

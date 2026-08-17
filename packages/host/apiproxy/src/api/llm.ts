@@ -88,8 +88,18 @@ export interface DiscoveredModelView {
   id: string
   /** Human-readable name when the endpoint supplies one. */
   name?: string
+  /** Optional user-facing distinction from otherwise similar models. */
+  description?: string
   /** Maximum combined request and response context, when disclosed. */
   contextWindow?: number
   /** Maximum output tokens, when disclosed. */
   maxTokens?: number
+  /**
+   * Request modalities the endpoint advertises for this model. The host
+   * vocabulary is merge-extensible, so the wire carries it open rather than
+   * pinning a closed set this layer would have to grow in lockstep.
+   */
+  inputModalities?: readonly string[]
+  /** Live residency on an endpoint that loads models on demand. */
+  residency?: 'loaded' | 'loading' | 'unloaded' | 'unloading'
 }

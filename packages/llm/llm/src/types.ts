@@ -253,10 +253,24 @@ export interface LlmDiscoveredModel {
   id: string
   /** Human-readable name when the endpoint supplies one. */
   name?: string
+  /** Optional user-facing distinction from otherwise similar models. */
+  description?: string
   /** Maximum combined request and response context, when disclosed. */
   contextWindow?: number
   /** Maximum output tokens, when disclosed. */
   maxTokens?: number
+  /**
+   * Request modalities the endpoint advertises for this model. Absent means
+   * the endpoint disclosed nothing; an adopting surface may offer it, but a
+   * route still declares its own capability at registration.
+   */
+  inputModalities?: readonly ModelModality[]
+  /**
+   * Live residency on an endpoint that loads models on demand (a llama.cpp
+   * router, and the same idea in other local servers). Absent means the
+   * endpoint serves every advertised model without a load step.
+   */
+  residency?: 'loaded' | 'loading' | 'unloaded' | 'unloading'
 }
 
 /** One adapter-discovered model; catalog membership is advisory, not request validation. */

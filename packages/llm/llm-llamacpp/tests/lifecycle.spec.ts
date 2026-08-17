@@ -40,8 +40,8 @@ describe('discovery parsing', () => {
   it('derives context windows, modalities, and live status from a captured listing', () => {
     const models = parseModelsReply(CAPTURED_REPLY)
     expect(models).toHaveLength(2)
-    expect(models[0]).toMatchObject({ id: 'Grug', contextWindow: 131072, inputModalities: ['text', 'image'], status: 'unloaded' })
-    expect(models[1]).toMatchObject({ id: 'Qwen3.6-12B-IQ-Q8_0', contextWindow: 131072, inputModalities: ['text'], status: 'loaded' })
+    expect(models[0]).toMatchObject({ id: 'Grug', contextWindow: 131072, inputModalities: ['text', 'image'], residency: 'unloaded' })
+    expect(models[1]).toMatchObject({ id: 'Qwen3.6-12B-IQ-Q8_0', contextWindow: 131072, inputModalities: ['text'], residency: 'loaded' })
   })
 
   it('skips entries without usable ids instead of failing the listing', () => {

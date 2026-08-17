@@ -17,7 +17,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DiscoveredModelView, IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import { messageOf } from './store.ts'
@@ -143,11 +143,20 @@ function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
 }
 
+/** Copy key per reported residency, so the chip reads as words rather than wire vocabulary. */
+const RESIDENCY_KEY = {
+  loaded: 'candidateLoaded',
+  loading: 'candidateLoading',
+  unloaded: 'candidateUnloaded',
+  unloading: 'candidateUnloading',
+} as const satisfies Record<NonNullable<DiscoveredModelView['residency']>, keyof typeof en>
+
 /** Adopt a candidate, keeping whatever capacities the provider disclosed. */
 function adopt(candidate: DiscoveredModelView): ModelDraft {
   return {
     id: candidate.id,
     ...candidate.name === undefined ? {} : { name: candidate.name },
+    ...candidate.description === undefined ? {} : { description: candidate.description },
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
   }
@@ -471,10 +480,15 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                   checked={picked.has(candidate.id)}
                   onChange={() => { toggle(candidate.id) }}
                 />
-                {/* The id alone: it is the string adoption writes, and the
-                    capacities the endpoint reported are adopted with it and
-                    editable in the row that appears. */}
+                {/* The id is the string adoption writes; the capacities the
+                    endpoint reported are adopted with it and editable in the
+                    row that appears. What the endpoint additionally discloses
+                    — vision input, and whether a load-on-demand server has
+                    this model resident — rides alongside as chips, because
+                    both change which candidate a user wants to pick. */}
                 <span className={styles['candidateId']}>{candidate.id}</span>
+                {(candidate.inputModalities ?? []).includes('image') ? <Pill>{t('candidateVision')}</Pill> : undefined}
+                {candidate.residency === undefined ? undefined : <Pill active={candidate.residency === 'loaded'}>{t(RESIDENCY_KEY[candidate.residency])}</Pill>}
               </label>
             </li>
           ))}

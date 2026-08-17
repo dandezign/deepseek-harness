@@ -34,7 +34,7 @@ export interface LlamaCppCatalogModel {
   id: string
   /** Selector label; defaults to {@link id}. */
   name?: string
-  /** Optional selector detail (discovery fills this from live status). */
+  /** Optional selector detail; the endpoint discloses none, so this is the deployment's own note. */
   description?: string
   /** Known combined context capacity; omitted falls back to the route default. */
   contextWindow?: number

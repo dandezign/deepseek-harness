@@ -250,6 +250,24 @@ describe('model discovery registry', () => {
     ])
   })
 
+  it('carries adapter-disclosed modalities and residency through to candidates', async () => {
+    // A load-on-demand endpoint knows things the capacities cannot express;
+    // dropping them here would leave the adopting surface unable to show
+    // which candidate is vision-capable or already resident.
+    const ctx = await setup()
+    const modalities = ['text', 'image']
+    ctx.llm.registerModelDiscovery('llm-example', () => Promise.resolve([
+      { id: 'vision', inputModalities: modalities, residency: 'loaded', description: 'note' },
+      { id: 'plain' },
+    ] as never))
+
+    const [vision, plain] = await ctx.llm.discoverModels('llm-example', { baseURL: 'https://gateway.example/v1' })
+    expect(vision).toEqual({ id: 'vision', description: 'note', inputModalities: ['text', 'image'], residency: 'loaded' })
+    expect(plain).toEqual({ id: 'plain' })
+    // The candidate must not alias the adapter's own array.
+    expect(vision?.inputModalities).not.toBe(modalities)
+  })
+
   it('refuses a namespace nothing serves and a draft with no endpoint', async () => {
     const ctx = await setup()
     ctx.llm.registerModelDiscovery('llm-example', () => Promise.resolve([]))

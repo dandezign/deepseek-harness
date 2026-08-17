@@ -575,11 +575,17 @@ export class LlmRuntime extends Service {
     for (const model of discovered) {
       if (typeof model.id !== 'string' || model.id.length === 0 || seen.has(model.id)) continue
       seen.add(model.id)
+      // Adapter-owned arrays are detached on the way out: a candidate list a
+      // surface holds must not alias state the adapter still mutates.
+      const inputModalities = this.detachedModalities(model.inputModalities)
       models.push({
         id: model.id,
         ...model.name === undefined ? {} : { name: model.name },
+        ...model.description === undefined ? {} : { description: model.description },
         ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
         ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+        ...inputModalities === undefined ? {} : { inputModalities },
+        ...model.residency === undefined ? {} : { residency: model.residency },
       })
     }
     return models

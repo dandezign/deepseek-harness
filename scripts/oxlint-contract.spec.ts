@@ -45,7 +45,17 @@ async function writeContractConfig(suffix: string): Promise<string> {
   return path
 }
 
-describe('Oxlint executable contract', () => {
+/**
+ * Every case here spawns a real `node + tsx + oxlint` subprocess (the `--fix`
+ * cases spawn it twice, for the fix and its retry). That costs ~2s per case
+ * alone and over 6s when the whole suite is running in parallel, so the 5s
+ * default would fail these on machine load rather than on any contract
+ * breach. The ceiling is generous on purpose: it only ever bites on a genuine
+ * hang, which is the single thing worth failing for here.
+ */
+const OXLINT_TEST_TIMEOUT = { timeout: 60_000 }
+
+describe('Oxlint executable contract', OXLINT_TEST_TIMEOUT, () => {
   it('discovers the owning TypeScript project for every file class', async () => {
     const suffix = randomUUID()
     const configPath = await writeContractConfig(suffix)

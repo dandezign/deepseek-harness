@@ -214,17 +214,15 @@ describe('typert loader', () => {
 
     await ctx.loader.remove(id)
     await ctx.loader.await()
-    // The unmount reconciliation rides a queued microtask flush.
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(ctx.typert.get('@fixture/with-typert#Thing')).toBeUndefined()
+    // The unmount reconciliation rides a queued microtask flush, so this waits
+    // for the effect rather than for a fixed span a loaded machine overruns.
+    await vi.waitFor(() => { expect(ctx.typert.get('@fixture/with-typert#Thing')).toBeUndefined() })
     await ctx.loader.remove(plainId)
     await ctx.loader.await()
-    await new Promise(resolve => setTimeout(resolve, 20))
 
     await ctx.loader.create({ name: '@fixture/with-typert' })
     await ctx.loader.await()
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(ctx.typert.get('@fixture/with-typert#Thing')).toBeDefined()
+    await vi.waitFor(() => { expect(ctx.typert.get('@fixture/with-typert#Thing')).toBeDefined() })
   })
 
   it('follows entries mounted after activation', LOADER_TEST_TIMEOUT, async () => {
@@ -398,7 +396,9 @@ describe('typert loader', () => {
 
     await ctx.loader.create({ name: '@fixture/steady-failure' })
     await ctx.loader.await()
-    // The failing contributor's error is reported on the post-await flush.
+    // The failure is reported from a queued flush after `await()` settles, so
+    // this waits for the log rather than for a fixed span: under a loaded
+    // machine 20ms elapsed before the flush ran and the assertion raced it.
     await vi.waitFor(() => {
       expect(logged).toHaveBeenCalledWith(expect.objectContaining({ message: 'register failed' }))
     }, { timeout: 10_000 })

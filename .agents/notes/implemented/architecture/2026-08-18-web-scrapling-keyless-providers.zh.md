@@ -12,7 +12,7 @@ Status: implemented
 
 ## Decision
 
-`@deepseek-ai/dsh-web-scrapling` 向既有 `ctx.web` 能力缝注册两个提供方，不改变任何面向模型的表面：`duckduckgo`（搜索）与 `scrapling`（抓取）。`dsh-tool-web` 继续拥有 `web_search`/`web_fetch` 的 schema，[web 能力缝 note](2026-06-24-web-capability-seam.md) 的稳定性契约因此得以保持——换入无密钥提供方对模型契约不可见。
+`@deepseek-ai/dsh-web-scrapling` 向既有 `ctx.web` 能力缝注册两个提供方，不改变任何面向模型的表面：`duckduckgo`（搜索）与 `scrapling`（抓取）。`dsh-tool-web` 继续拥有 `web_search`/`web_fetch` 的 schema，[web 能力缝 note](2026-06-24-web-capability-seam.zh.md) 的稳定性契约因此得以保持——换入无密钥提供方对模型契约不可见。
 
 两个提供方共享同一个 `ScraplingRuntime`，由它拥有托管 Python 环境：
 

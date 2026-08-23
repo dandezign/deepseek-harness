@@ -4,7 +4,7 @@
 
 面向 harness LLM seam 的 llama.cpp 适配器：经由服务器 OpenAI 兼容端点对话，并补上多模型路由所需的模型生命周期——请求前确保已加载、针对路由器"model is not loaded"竞态的一次加载重试、可选的切换后卸载，以及能从在线列表读出上下文窗口与视觉能力的模型发现。单个插件实例拥有唯一的 `llamacpp` provider 路由，并在 settings 提供 `baseURL` 之前以**休眠**方式挂载。
 
-对话 wire（SSE 分帧、chunk 翻译、用量映射、消息序列化）与 [`dsh-llm-deepseek`](../llm-deepseek/README.md) 共享；本包拥有的是一切 llama.cpp 特有之物。
+对话 wire（SSE 分帧、chunk 翻译、用量映射、消息序列化）与 [`dsh-llm-deepseek`](../llm-deepseek/README.zh.md) 共享；本包拥有的是一切 llama.cpp 特有之物。
 
 ## Config
 

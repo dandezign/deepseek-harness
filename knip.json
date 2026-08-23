@@ -446,6 +446,17 @@
         "tests/**/*.ts"
       ]
     },
+    "packages/web/web-scrapling": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "tests/fixtures/*.mjs"
+      ]
+    },
     "packages/web/web-search-perplexity": {
       "entry": [
         "tests/**/*.spec.ts",

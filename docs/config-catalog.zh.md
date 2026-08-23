@@ -3206,6 +3206,40 @@ export interface Config {
 
 来源：[`packages/web/web-fetch-http/src/index.ts:34`](../packages/web/web-fetch-http/src/index.ts)
 
+<a id="deepseek-aidsh-web-scrapling"></a>
+
+## `@deepseek-ai/dsh-web-scrapling`
+
+需要：`web`
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills defaults). */
+export interface Config {
+  /** Base Python 3.10+ interpreter for venv creation; absent = platform candidates. */
+  pythonCommand?: string
+  /** Directory receiving the managed venv. Defaults to `$DSH_HOME/web-scrapling`. */
+  venvRoot?: string
+  /** Create and install the venv on first use; `false` fails loud with instructions. */
+  autoSetup?: boolean
+  /** Scrapling acquisition mode for fetch; stealth/dynamic drive a browser engine. */
+  fetchMode?: 'standard' | 'stealth' | 'dynamic'
+  /** Stealth mode: attempt Cloudflare challenge solving. */
+  solveCloudflare?: boolean
+  /** Dynamic mode: wait for network idle before extraction. */
+  networkIdle?: boolean
+  /** Maximum extracted characters returned by one fetch. */
+  maxBodyChars?: number
+  /** Deadline for one search exchange in milliseconds. */
+  searchTimeoutMs?: number
+  /** Deadline for one fetch exchange in milliseconds. */
+  fetchTimeoutMs?: number
+  /** Bound for the whole one-time setup pipeline in milliseconds. */
+  setupTimeoutMs?: number
+}
+```
+
+来源：[`packages/web/web-scrapling/src/index.ts:61`](../packages/web/web-scrapling/src/index.ts)
+
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 
 ## `@deepseek-ai/dsh-web-search-deepseek`

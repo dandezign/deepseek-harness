@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-llm-llamacpp",
   "description": "llama.cpp router adapter for the DeepSeek Harness LLM seam: chat completions plus model load/unload lifecycle",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.1-rc.2",
   "publishConfig": {
     "access": "public"
   },

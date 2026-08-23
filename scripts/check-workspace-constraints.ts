@@ -164,6 +164,9 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
   // The Scrapling providers execute this Python tool from their bundled lib.
   '@deepseek-ai/dsh-web-scrapling': ['scripts/scrapling_tools.py'],
+  // Sibling adapters import the shared chat-completions wire through the
+  // ./wire subpath, published as its own bundle beside the root entry.
+  '@deepseek-ai/dsh-llm-deepseek': ['lib/wire.js'],
 }
 
 function sameStringList(actual: readonly string[] | undefined, expected: readonly string[]): boolean {

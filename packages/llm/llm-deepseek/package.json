@@ -22,12 +22,17 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
+    "./wire": {
+      "types": "./lib/types/wire.d.ts",
+      "default": "./lib/wire.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/wire.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

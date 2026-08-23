@@ -18,8 +18,8 @@
 import { contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
-import { serializeMessages } from '@deepseek-ai/dsh-llm-deepseek/src/serialize.ts'
-import type { WireMessage, WireRequest, WireTool } from '@deepseek-ai/dsh-llm-deepseek/src/types.ts'
+import { serializeMessages } from '@deepseek-ai/dsh-llm-deepseek/wire'
+import type { WireMessage, WireRequest, WireTool } from '@deepseek-ai/dsh-llm-deepseek'
 
 /** One OpenAI-compatible multimodal content part. */
 export type WireContentPart =

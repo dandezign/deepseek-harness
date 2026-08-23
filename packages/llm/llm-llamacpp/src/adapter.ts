@@ -18,10 +18,8 @@ import type {
   ResolvedRetryPolicy,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import { httpErrorCode } from '@deepseek-ai/dsh-llm-deepseek/src/adapter.ts'
-import { parseSse } from '@deepseek-ai/dsh-llm-deepseek/src/sse.ts'
-import { translate } from '@deepseek-ai/dsh-llm-deepseek/src/translate.ts'
-import type { WireError } from '@deepseek-ai/dsh-llm-deepseek/src/types.ts'
+import { httpErrorCode, parseSse, translate } from '@deepseek-ai/dsh-llm-deepseek/wire'
+import type { WireError } from '@deepseek-ai/dsh-llm-deepseek'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'

@@ -22,6 +22,14 @@ Three failures surfaced together the first time a real llama.cpp router was driv
 - The web settings page needs no new wire method: the fetch action already asks the endpoint the draft shows, so "test the connection before saving" is the same round trip as "list models to adopt".
 - A provider whose key is genuinely required is unaffected: `credentialOptional` absent means the old semantics everywhere.
 
+## Alternatives considered
+
+**A UI-side special case keyed on the `llamacpp` provider id.** Naming provider ids inside `providerUsable` and the key field would couple the client package to one adapter's identity and duplicate what only the adapter can know; `credentialOptional` puts the fact where the directory already projects adapter knowledge (`declared` uses the same reasoning).
+
+**Load progress as a session event or a `MuxFrame` variant.** A session event would make transport state reconstructable as model input (model-visible ⟺ logged is the contract it would break), and a mux frame would give a transient banner session-scoped whole-snapshot semantics it does not need; the forwarded-event channel already exists for exactly one-way host→client notifications.
+
+**Shipped `high`/`max` thinking levels mapped onto the nearest template-accepted value.** Rendering the templates proved Qwen3.8 rejects every value outside low/medium/xhigh with a server error, and Qwen3.6/Qwen2.5 ignore the knob entirely — clamping or aliasing would either 500 on real servers or silently send a value the template never reads. Declaring exactly the verified vocabulary and refusing the rest client-side (`INVALID_REQUEST`) makes the failure name its remedy.
+
 ## The route collision a real deployment hit
 
 A first real deployment kept its old hand-declared `llm-pi-ai.providers.llamacpp` section while adding the new section. pi-ai registered the route first, so the dedicated plugin's `registerAdapter` threw `DUPLICATE_ADAPTER` inside its settings-change callback — contained, logged generically, and invisible in the UI, while every chat kept hitting the pi-ai adapter and failing with `MODEL_NOT_LOADED` (pi-ai classifies the wording but cannot load anything). The fix keeps the one-route-one-adapter design and makes the failure name its remedy: the plugin rethrows the duplicate with "remove the duplicate entry from the llm-pi-ai settings section", and the README adoption note says the same. The deployment's own settings were migrated by moving the curated model list into `llm-llamacpp:` (the migration drops the pi-ai route's image input; the dedicated adapter is text-only v1).

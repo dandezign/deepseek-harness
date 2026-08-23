@@ -7,6 +7,7 @@ import * as LlamaCpp from '../src/index.ts'
 import { LlamaCppAdapter, normalizeOrigin, resolveAdapterOptions, resolveRoutes } from '../src/index.ts'
 import type { LlamaCppConnectionOptions } from '../src/index.ts'
 import { closeMockRouters, mockRouter } from './mock-router.ts'
+import { MemorySettings } from '../../../settings/settings/tests/memory.ts'
 
 afterEach(async () => {
   await closeMockRouters()
@@ -29,6 +30,7 @@ function connectionOf(origin: string, overrides: Partial<LlamaCppConnectionOptio
     autoUnload: 'never',
     loadTimeoutMs: 2_000,
     pollIntervalMs: 10,
+    watchEvents: true,
     maxTokens: 8_192,
     defaultContextWindow: 32_768,
     models: [],
@@ -197,6 +199,29 @@ describe('LlamaCppAdapter against a mock router', () => {
       .rejects.toThrow(/remove the duplicate "llamacpp" entry from the llm-pi-ai settings section/)
     release()
     squatter.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps its settings section and directory registered once the section installs', async () => {
+    // Regression: installSettingsSection fires onChange a second time right
+    // after the section registers; a fresh registerConfigurableProviders
+    // there met the plugin's own boot-time entries as DUPLICATE_DIRECTORY,
+    // failing the fiber after the routes mounted and withdrawing the
+    // section, the adapter, and every catalog row from the surfaces.
+    const server = await mockRouter({ models: [{ id: 'tiny' }] })
+    const ctx = new Context()
+    await ctx.plugin(MemorySettings, {
+      doc: { 'llm-llamacpp': { baseURL: server.url } },
+    })
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlamaCpp, {})
+    await new Promise((resolve) => { setTimeout(resolve, 20) })
+    const settings = ctx.get('settings') as unknown as {
+      describe(): Array<{ ns: string }>
+    } | undefined
+    expect(settings?.describe().map(scope => scope.ns)).toContain('llm-llamacpp')
+    expect(ctx.llm.listConfigurableProviders().map(entry => entry.provider)).toEqual(['llamacpp'])
+    expect(ctx.llm.listProviders().map(provider => provider.id)).toEqual(['llamacpp'])
     await ctx.fiber.dispose()
   })
 })

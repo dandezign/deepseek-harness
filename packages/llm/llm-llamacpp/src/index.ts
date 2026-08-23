@@ -338,12 +338,14 @@ export function apply(ctx: Context, config: Config): void {
   }, 'llm-llamacpp: adapter lifecycle teardown')
 
   /**
-   * The directory entries surfaces offer. The default route is listed even
-   * while dormant, so the llama.cpp card exists before any endpoint is
-   * stored; a named route only appears once configured, because nothing else
-   * would tell a surface it should exist. The credential is optional on all
-   * of them: a server launched without `--api-key` serves anonymous requests.
-   */
+    * The directory entries surfaces offer. The default route is listed even
+    * while dormant, so the llama.cpp card exists before any endpoint is
+    * stored; a named route only appears once configured, because nothing else
+    * would tell a surface it should exist. The credential is optional on all
+    * of them: a server launched without `--api-key` serves anonymous requests.
+    */
+  let directory: ReturnType<typeof ctx.llm.registerConfigurableProviders> | undefined
+  let directoryFacts: unknown
   const syncDirectory = (resolved: Map<string, LlamaCppConnectionOptions>): void => {
     const entries = [{
       provider: PROVIDER,
@@ -362,7 +364,18 @@ export function apply(ctx: Context, config: Config): void {
         credentialOptional: true,
       })
     }
-    ctx.llm.registerConfigurableProviders(entries)
+    if (deepEqualJson(entries, directoryFacts)) return
+    // Atomic replace, never register-again: installSettingsSection fires
+    // onChange once more right after the section registers, and a fresh
+    // registration would meet its own previous entries as DUPLICATE_DIRECTORY
+    // — failing the fiber after the routes mounted and withdrawing the
+    // section, the adapter, and the catalog rows from every surface.
+    if (directory === undefined) {
+      directory = ctx.llm.registerConfigurableProviders(entries)
+    } else {
+      directory.replace(entries)
+    }
+    directoryFacts = entries
   }
 
   // Route registration follows each endpoint: a route whose endpoint

@@ -423,6 +423,14 @@ interface LlmConfigurableProvider {
    * from outside.
    */
   declared?: boolean
+  /**
+   * Whether this route serves requests with no stored credential: the
+   * profile's credential reference is then an optional bearer for
+   * deployments that do set one (a llama.cpp server answers anonymously
+   * unless launched with `--api-key`). Absent means a resolved reference is
+   * required. Only the adapter can answer; `active` still gates usability.
+   */
+  credentialOptional?: boolean
 }
 ```
 
@@ -617,10 +625,24 @@ interface LlmDiscoveredModel {
   id: string
   /** Human-readable name when the endpoint supplies one. */
   name?: string
+  /** Optional user-facing distinction from otherwise similar models. */
+  description?: string
   /** Maximum combined request and response context, when disclosed. */
   contextWindow?: number
   /** Maximum output tokens, when disclosed. */
   maxTokens?: number
+  /**
+   * Request modalities the endpoint advertises for this model. Absent means
+   * the endpoint disclosed nothing; an adopting surface may offer it, but a
+   * route still declares its own capability at registration.
+   */
+  inputModalities?: readonly ModelModality[]
+  /**
+   * Live residency on an endpoint that loads models on demand (a llama.cpp
+   * router, and the same idea in other local servers). Absent means the
+   * endpoint serves every advertised model without a load step.
+   */
+  residency?: 'loaded' | 'loading' | 'unloaded' | 'unloading'
 }
 ```
 

@@ -30,7 +30,7 @@ export async function freePort(): Promise<number> {
 }
 
 /** One configured mock model. */
-export interface MockModel {
+interface MockModel {
   id: string
   /** Launch argv reported under `status.args` (a `--ctx-size` entry yields a context window). */
   argv?: string[]

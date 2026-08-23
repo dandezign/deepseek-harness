@@ -22,6 +22,14 @@ Status: implemented
 - web 设置页无需新的 wire 方法：fetch 动作询问的正是草稿显示的端点，"保存前测试连接"与"列出模型以采纳"是同一次往返。
 - 确实需要密钥的 provider 不受影响：`credentialOptional` 缺席在所有地方都意味着旧语义。
 
+## 考虑过的替代方案
+
+**以 `llamacpp` provider id 为键的 UI 侧特判。** 在 `providerUsable` 与密钥字段里点名 provider id 会把 client 包耦合到某一个适配器的身份，并复刻只有适配器才知道的事实；`credentialOptional` 把事实放回目录已在投影适配器知识的位置（`declared` 使用同一推理）。
+
+**把加载进度做成 session 事件或 `MuxFrame` 变体。** session 事件会让传输状态可重建为模型输入（违背 model-visible ⟺ logged 契约），而 mux 帧会给一个瞬态横幅配上它并不需要的会话级整快照语义；转发事件通道正是为这种单向 host→client 通知而存在的。
+
+**随仓库发布映射到最近可接受值的 `high`/`max` 思考档位。** 渲染模板证明 Qwen3.8 对 low/medium/xhigh 之外的任何值都报服务器错误，而 Qwen3.6/Qwen2.5 完全忽略该旋钮——钳制或别名要么在真实服务器上 500，要么静默发送模板从不读取的值。精确声明经验证的词汇并在客户端拒绝其余（`INVALID_REQUEST`）让失败点名自己的解法。
+
 ## 真实部署撞上的路由冲突
 
 首个真实部署在新增小节的同时保留了手工声明的 `llm-pi-ai.providers.llamacpp` 小节。pi-ai 先注册了路由，专用插件的 `registerAdapter` 于是在其 settings 变更回调里抛出 `DUPLICATE_ADAPTER`——被包含、日志泛化、UI 里不可见，而每次聊天继续打到 pi-ai 适配器并以 `MODEL_NOT_LOADED` 失败（pi-ai 能分类该措辞却无法加载任何模型）。修复保持一路由一适配器的设计，并让失败点名自己的解法：插件以"从 llm-pi-ai settings 小节移除重复条目"重新抛出，README 的迁移说明同义。该部署自身的 settings 已迁移：把精选模型列表移入 `llm-llamacpp:`（迁移丢弃了 pi-ai 路由的图像输入；专用适配器 v1 为纯文本）。

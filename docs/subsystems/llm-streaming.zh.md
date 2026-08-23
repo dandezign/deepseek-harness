@@ -959,7 +959,7 @@ One live model-load transition reported by an adapter that owns model lifecycle 
 'llm/model-load-progress'(progress: LlmModelLoadProgress): void
 ```
 
-Source: [`packages/llm/llm/src/types.ts:33`](../../packages/llm/llm/src/types.ts)
+Source: [`packages/llm/llm/src/types.ts`](../../packages/llm/llm/src/types.ts)
 
 <a id="llmstream--waterfall"></a>
 

@@ -62,6 +62,6 @@
 ## Known Limitations and Deferred Work
 
 - **无 SSRF 防护**——scrapling 抓取器可触达模型指名的任意 http(s) 目标，包括浏览器可达的内网；stealth/dynamic 模式还附带完整浏览器引擎。不要在可触达敏感内网目标的环境中启用。
-- **DuckDuckGo HTML 端点并非 API**——结果解析依赖端点稳定的 HTML 结构；页面改版会退化为空结果而非抛错，高频使用可能被限流或质询。
+- **DuckDuckGo HTML 端点并非 API**——结果解析依赖端点稳定的 HTML 结构；HTTP 200 但无可解析结果的页面会退化为空结果，而非 200 的异常或限流响应会以 `WEB_PROVIDER_ERROR` 醒目报错，不会被误读为空结果。
 - **按请求的抓取控制是提供方配置而非工具参数**——能力缝的 `WebFetchRequest` 仅有 `{url}`；`cssSelector` 一类的抽取范围控制推迟到能力缝长出提供方中立的抓取控制后再做（[能力缝设计](../../../.agents/notes/implemented/architecture/2026-06-24-web-capability-seam.zh.md)）。
 - **StealthyFetcher 自带的浏览器在首次 stealth 调用时由 Scrapling 下载**——安装阶段只为 dynamic 模式安装 Playwright Chromium 引擎；stealth 模式的 Camoufox 引擎在其首次调用时下载，且不计入 `setupTimeoutMs`。

@@ -52,6 +52,18 @@ def search_web(query, num_results):
 
         page = Fetcher.get(url, stealthy_headers=True, impersonate="chrome", timeout=15)
 
+        # DuckDuckGo answers rate-limited or fingerprint-flagged clients with a
+        # challenge shell under a non-200 status (observed as 202). Parsing that
+        # page yields zero results indistinguishable from an empty result page,
+        # so report it as a domain error instead.
+        status = getattr(page, "status", 200) or 200
+        if status != 200:
+            return {
+                "error": f"HTTP {status} instead of a results page (anti-bot anomaly response or rate limit); no results were served",
+                "results": [],
+                "count": 0,
+            }
+
         results = []
 
         def unwrap(href):

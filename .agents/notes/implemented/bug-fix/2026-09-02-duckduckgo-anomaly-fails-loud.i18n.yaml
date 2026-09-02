@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-02-duckduckgo-anomaly-fails-loud.md
+2026-09-02-duckduckgo-anomaly-fails-loud.md: 6072cce84ec4a51588849dd1d72ac625701bd504
+2026-09-02-duckduckgo-anomaly-fails-loud.zh.md: 60d74372b6af41c75060cd1caf6ddcfdca7c9c94

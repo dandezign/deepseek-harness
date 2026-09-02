@@ -157,6 +157,7 @@ describe('ModelSelect reasoning effort', () => {
       locked={false}
       available
       directory={directory}
+      progress={createSnapshotStore<ModelLoadProgressState>(null)}
       load={vi.fn()}
       select={vi.fn().mockResolvedValue(true)}
       t={t}

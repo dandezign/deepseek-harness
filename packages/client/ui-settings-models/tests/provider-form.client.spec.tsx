@@ -766,12 +766,12 @@ const LlamaCppConfig = Schema.object({
 })
 
 function llamaCppNamespace(
-  section: Record<string, unknown> = {},
-  user: Record<string, unknown> = section,
+  section: JsonValue = {},
+  user: JsonValue = section,
 ): SettingsNamespaceView {
   return {
     ns: 'llm-llamacpp',
-    schema: JSON.parse(JSON.stringify(LlamaCppConfig.toJSON())) as unknown,
+    schema: JSON.parse(JSON.stringify(LlamaCppConfig.toJSON())) as JsonValue,
     value: section,
     base: {},
     user,
@@ -783,7 +783,7 @@ function llamaCppNamespace(
 
 describe('llama.cpp provider card', () => {
   async function mountLlamaCpp(options: {
-    section?: Record<string, unknown>
+    section?: JsonValue
     discover?: ReturnType<typeof vi.fn>
     mutate?: ReturnType<typeof vi.fn>
   } = {}) {
@@ -824,15 +824,17 @@ describe('llama.cpp provider card', () => {
         unset: vi.fn(),
       },
     }
+    const ctx = { remote: face } as unknown as ConstructorParameters<typeof ModelsSettingsStore>[0]
     const controller = new ModelsSettingsStore(
-      face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+      ctx, settingsSchema, new SettingsDescribeMirror(ctx))
     await controller.load()
     render(<ModelsSection
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
-      api={face as never}
+      operations={createModelsOperations(ctx)}
       schema={settingsSchema}
       t={t}
+      renderSlot={() => null}
     />)
     return { discover, mutate }
   }

@@ -21,7 +21,8 @@ import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { LlmDiscoveredModel, LlmModelDiscoveryRequest, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
+import type {} from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { normalizeApiKey } from '@deepseek-ai/dsh-llm'
 import { LlamaCppAdapter, normalizeOrigin } from './adapter.ts'
@@ -46,7 +47,7 @@ export type { LifecycleOptions, ModelState } from './lifecycle.ts'
 export const name = 'llm-llamacpp'
 export const inject = ['llm']
 
-const NS = settingsNamespace('llm-llamacpp')
+const NS = 'llm-llamacpp'
 const DEFAULT_API_KEY_ENV = 'LLAMACPP_API_KEY'
 const BASE_URL_ENV = 'LLAMACPP_BASE_URL'
 /** The single provider route this plugin owns. */
@@ -426,25 +427,30 @@ export function apply(ctx: Context, config: Config): void {
 
   // Endpoint interrogation for the configuration card: live listing with the
   // capacities and modalities the generic OpenAI-compatible reader leaves behind.
-  ctx.llm.registerModelDiscovery(NS, async (request: LlmModelDiscoveryRequest): Promise<readonly LlmDiscoveredModel[]> => {
-    // The draft the card shows wins; otherwise describe the route named, or
-    // the default one when the request names none.
-    const resolved = routes().get(request.provider ?? PROVIDER)
-    const raw = request.baseURL ?? resolved?.origin
-    if (raw === undefined || raw.length === 0) {
-      throw new LlmError(
-        'llm-llamacpp: set a base URL before fetching models',
-        'INVALID_DISCOVERY',
-      )
-    }
-    const key = request.apiKey ?? await resolveKeyByRef(resolved?.apiKeyEnv ?? credentialRef(DEFAULT_API_KEY_ENV))
-    return discoverRouterModels(normalizeOrigin(raw), key, request.signal)
-  })
-
-  installSettingsSection(ctx, NS, Config, config, {
-    setSource: (source) => {
-      current = source
+  ctx.llm.registerModelDiscovery(
+    NS,
+    async (request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<readonly LlmDiscoveredModel[]> => {
+      // The draft the card shows wins; otherwise describe the route named, or
+      // the default one when the request names none.
+      const resolved = routes().get(request.provider ?? PROVIDER)
+      const raw = request.baseURL ?? resolved?.origin
+      if (raw === undefined || raw.length === 0) {
+        throw new LlmError(
+          'llm-llamacpp: set a base URL before fetching models',
+          'INVALID_DISCOVERY',
+        )
+      }
+      const key = request.apiKey ?? await resolveKeyByRef(resolved?.apiKeyEnv ?? credentialRef(DEFAULT_API_KEY_ENV))
+      return discoverRouterModels(normalizeOrigin(raw), key, signal)
     },
-    onChange: syncRegistration,
+  )
+
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, NS, Config, config, {
+      setSource: (source) => {
+        current = source
+      },
+      onChange: syncRegistration,
+    })
   })
 }

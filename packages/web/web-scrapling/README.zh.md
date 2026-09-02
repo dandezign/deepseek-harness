@@ -1,8 +1,24 @@
+---
+description: "面向 ctx.web 的无密钥提供方：通过托管的 Python 虚拟环境以 DuckDuckGo 搜索、以 Scrapling 抓取页面，无需任何搜索 API 密钥。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-web-scrapling
 
 [English](README.md) | 中文
 
+## 概述
+
 面向 `ctx.web` 能力缝的无密钥 Web 提供方：一个抓取 DuckDuckGo HTML 端点的**搜索提供方**（`id: duckduckgo`），和一个以 Chrome TLS 指纹获取页面并抽取正文的 **Scrapling 抓取提供方**（`id: scrapling`）。二者都在托管 Python 虚拟环境中运行 [Scrapling](https://github.com/D4Vinci/Scrapling)——无需任何搜索 API 密钥。
+
+## 目录
+
+- [提供方](#providers)
+- [托管 Python 环境](#managed-python-environment)
+- [配置](#config)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 | 包 | 角色 |
 |---|---|
@@ -10,6 +26,7 @@
 | `@deepseek-ai/dsh-web-scrapling`（本包） | 搜索提供方（DuckDuckGo）+ 抓取提供方（Scrapling），共享一个托管 venv |
 | `@deepseek-ai/dsh-tool-web` | Consumer：面向模型的 `web_search` / `web_fetch` 工具 |
 
+<a id="providers"></a>
 ## 提供方
 
 搜索提供方把每条解析出的 DuckDuckGo 结果映射为 `WebSearchSource`（`url` 必需；空标题/摘要省略；无 URL 的条目丢弃），从不产出 `content` 与 `publishedAt`，并返回 `truncated: false`——`maxResults` 截断由能力缝统一执行。请求不携带任何凭证。
@@ -24,6 +41,7 @@
 
 抽取恒定产出 `WebFetchBody` 的 `kind: "text"`：优先 trafilatura 正文，回退 markdownify。非 2xx 页面是一个结果（Python 工具上报页面状态）而非抛错。stealth/dynamic 模式会在安装阶段下载浏览器引擎（`playwright install chromium`）。
 
+<a id="managed-python-environment"></a>
 ## 托管 Python 环境
 
 两个提供方共享一个管理 `venvRoot`（默认 `$DSH_HOME/web-scrapling`）下 venv 的运行时：
@@ -34,6 +52,7 @@
 
 取消与超时会杀死子进程（`WEB_ABORTED`，或提供方自有超时码 `SCRAPLING_SEARCH_TIMEOUT` / `SCRAPLING_FETCH_TIMEOUT`）。工具交互为 argv 上的一个 JSON 请求与 stdout 上的一个 JSON 结果，上限 64 MiB。
 
+<a id="config"></a>
 ## 配置
 
 | 键 | 默认值 | 含义 |
@@ -50,6 +69,19 @@
 | `setupTimeoutMs` | `600000` | 一次性安装流水线的总时限 |
 
 选择策略：未配置 id 时，只要本包是唯一**可用**提供方即自动选中——已注册但缺密钥的 `deepseek-official` 搜索提供方不算可用，因此单独挂载本包即可。若同时挂载了另一个可用抓取提供方（例如 `web-fetch-http`），需在能力缝上显式配置 `fetchProvider`，否则能力缝抛出 `WEB_PROVIDER_AMBIGUOUS`。
+
+<a id="dev-note"></a>
+## 开发备注
+
+<details>
+<summary>维护者工作背景——点击展开</summary>
+
+venv 生命周期与提供方拓扑的决策由[无密钥 Scrapling 提供方 note](../../../.agents/notes/implemented/architecture/2026-08-18-web-scrapling-keyless-providers.zh.md)持有；异常响应的响亮报错由 [DuckDuckGo 异常 note](../../../.agents/notes/implemented/bug-fix/2026-09-02-duckduckgo-anomaly-fails-loud.zh.md)持有。
+
+</details>
+
+本包不发布运行时不变量伴生件：两个提供方都不拥有事件序列或可变关系，每个结果都只是一次子进程交换的 JSON 结论，经 `ctx.web` 能力缝传递。
+
 
 ## Model Experience
 

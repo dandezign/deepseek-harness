@@ -1104,7 +1104,7 @@ export interface LlamaCppCatalogModel {
 
 Depends on: [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
 
-Source: [`packages/llm/llm-llamacpp/src/index.ts:95`](../packages/llm/llm-llamacpp/src/index.ts)
+Source: [`packages/llm/llm-llamacpp/src/index.ts:96`](../packages/llm/llm-llamacpp/src/index.ts)
 
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 

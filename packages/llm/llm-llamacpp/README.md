@@ -1,10 +1,27 @@
+---
+description: "llama.cpp adapter for the harness LLM seam: OpenAI-compatible chat plus the ensure-loaded lifecycle, discovery, and settings card a multi-model router needs."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-llm-llamacpp
 
 English | [中文](README.zh.md)
 
+## Summary
+
 llama.cpp adapter for the harness LLM seam: chat through the server's OpenAI-compatible endpoint plus the model lifecycle a multi-model router needs — ensure-loaded before each request, one load-and-retry on the router's not-loaded race, optional unload-after-switch, and model discovery that reads context windows and vision capability from the live listing. One plugin instance owns the single `llamacpp` provider route and mounts **dormant** until settings supply a `baseURL`.
 
 The chat wire (SSE framing, chunk translation, usage mapping, message serialization) is shared with [`dsh-llm-deepseek`](../llm-deepseek/README.md); what this package owns is everything llama.cpp-specific.
+
+## Table of Contents
+
+- [Config](#config)
+- [Model lifecycle](#model-lifecycle)
+- [Discovery](#discovery)
+- [Errors](#errors)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
 ## Config
 
@@ -57,6 +74,15 @@ Nothing is stored by discovery; adopting candidates updates the draft, `settings
 ## Errors
 
 Non-2xx chat responses throw `LlmError` through the same `httpErrorCode` mapping the DeepSeek adapter owns: `AUTH` (401/403), `QUOTA`, `RATE_LIMIT`, `CONTEXT_WINDOW_EXCEEDED`, **`MODEL_NOT_LOADED`** (a recognized-but-unloaded model), `INVALID_REQUEST` (other 400s), `SERVER` (5xx), `HTTP_<status>` otherwise. Load waits that exceed `loadTimeoutMs` throw `TIMEOUT`; transport failures name the endpoint and chain the cause. Every request carries the shared attribution header from dsh-llm's `attributionHeaders()`.
+## Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+The adapter's settings card, load-progress event, and lifecycle decisions are owned by [the llama.cpp settings card note](../../../.agents/notes/implemented/architecture/2026-08-16-llamacpp-settings-card-and-load-progress.md); the shared chat wire ships as the built `./wire` subpath of `dsh-llm-deepseek` so plain-Node profile boots and the tsx source launch resolve identically.
+
+</details>
+
 
 ## Model Experience
 

@@ -1,8 +1,24 @@
+---
+description: "Keyless DuckDuckGo search and Scrapling fetch providers for ctx.web, running through a managed Python virtual environment — no search API keys."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-web-scrapling
 
 English | [中文](README.zh.md)
 
+## Summary
+
 Keyless web providers for the `ctx.web` seam: a **DuckDuckGo search provider** (`id: duckduckgo`) that scrapes DuckDuckGo's HTML endpoint, and a **Scrapling fetch provider** (`id: scrapling`) that retrieves pages with Chrome TLS impersonation and readable-text extraction. Both run through [Scrapling](https://github.com/D4Vinci/Scrapling) in a managed Python virtual environment — no search API keys.
+
+## Table of Contents
+
+- [Providers](#providers)
+- [Managed Python environment](#managed-python-environment)
+- [Config](#config)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
 | Package | Role |
 |---|---|
@@ -50,6 +66,17 @@ Cancellation and deadlines kill the child process (`WEB_ABORTED`, or the provide
 | `setupTimeoutMs` | `600000` | bound for the whole one-time setup pipeline |
 
 Selection: with no configured id, these providers auto-select when they are the only **usable** provider — a registered but keyless `deepseek-official` search provider is not usable, so mounting this package alone is enough. If another usable fetch provider is also mounted (for example `web-fetch-http`), configure the seam's `fetchProvider` explicitly or the seam throws `WEB_PROVIDER_AMBIGUOUS`.
+## Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+The venv lifecycle and provider topology decisions are owned by [the keyless Scrapling providers note](../../../.agents/notes/implemented/architecture/2026-08-18-web-scrapling-keyless-providers.md); the loud anomaly failure by [the DuckDuckGo anomaly note](../../../.agents/notes/implemented/bug-fix/2026-09-02-duckduckgo-anomaly-fails-loud.md).
+
+</details>
+
+No runtime invariant companion is published because the providers own no event sequence or mutable relation; every outcome is one subprocess exchange's JSON verdict carried through the `ctx.web` seam.
+
 
 ## Model Experience
 
@@ -65,5 +92,3 @@ No direct invalidation; the named consumer owns any request-prefix changes.
 - **DuckDuckGo HTML endpoint is not an API** — result parsing depends on the endpoint's stable HTML shape; a 200 page with no parseable results degrades to empty sources, while a non-200 anomaly or rate-limit response fails loud as `WEB_PROVIDER_ERROR` instead of reading as an empty result.
 - **Per-request fetch controls are provider config, not tool arguments** — the seam's `WebFetchRequest` is `{url}` only; `cssSelector`-style extraction scoping stays deferred until the seam grows provider-neutral fetch controls ([seam design](../../../.agents/notes/implemented/architecture/2026-06-24-web-capability-seam.md)).
 - **StealthyFetcher's own browser is installed on first stealth use by Scrapling** — setup installs the Playwright Chromium engine for the dynamic mode; the stealth mode's Camoufox engine downloads on its first invocation and is not covered by `setupTimeoutMs`.
-
-No runtime invariant companion is published because the providers own no event sequence or mutable relation; every outcome is one subprocess exchange's JSON verdict carried through the `ctx.web` seam.

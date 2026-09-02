@@ -1,10 +1,27 @@
+---
+description: "面向 harness LLM seam 的 llama.cpp 适配器：OpenAI 兼容对话，外加多模型路由所需的确保加载生命周期、发现与设置卡片。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-llm-llamacpp
 
 [English](README.md) | 中文
 
+## 概述
+
 面向 harness LLM seam 的 llama.cpp 适配器：经由服务器 OpenAI 兼容端点对话，并补上多模型路由所需的模型生命周期——请求前确保已加载、针对路由器"model is not loaded"竞态的一次加载重试、可选的切换后卸载，以及能从在线列表读出上下文窗口与视觉能力的模型发现。单个插件实例拥有唯一的 `llamacpp` provider 路由，并在 settings 提供 `baseURL` 之前以**休眠**方式挂载。
 
 对话 wire（SSE 分帧、chunk 翻译、用量映射、消息序列化）与 [`dsh-llm-deepseek`](../llm-deepseek/README.zh.md) 共享；本包拥有的是一切 llama.cpp 特有之物。
+
+## 目录
+
+- [Config](#config)
+- [模型生命周期](#model-lifecycle)
+- [发现](#discovery)
+- [错误](#errors)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 ## Config
 
@@ -33,6 +50,7 @@
 
 凭据是**可选的**：未加 `--api-key` 启动的 llama.cpp 服务器接受匿名请求，因此无法解析的引用退化为不发送 `Authorization` 头，而不是让每个请求都失败（与托管 provider 适配器相反，那里 `MISSING_CREDENTIAL` 才是正确答案）。确实启用密钥的服务器会以 `AUTH` 拒绝匿名请求。目录条目声明了 `credentialOptional`，因此 Models 页把无密钥的存活路由视为可用，且绝不给它标"API 密钥缺失"。
 
+<a id="model-lifecycle"></a>
 ## 模型生命周期
 
 基于 llama.cpp 构建 `b10443-27df9199d` 的实测行为；适配器在每个配置生成内探测一次 `GET /props`（能解析出密钥时携带 bearer 令牌——加 `--api-key` 启动的服务器对匿名探测回答 401），凡非 `role: "router"` 即退化为无操作生命周期，因此普通单模型服务器行为与从前完全一致。
@@ -44,6 +62,7 @@
 - **思考控制**：模型暴露其聊天模板真正读取的词汇，通过 `/apply-template` 渲染各模板验证（构建 `b10443-27df9199d`）：Qwen3.8 系映射分级 `reasoning_effort`——**low / medium / xhigh**，xhigh 为模板默认——且对任何其他值（包括 high 与 max）抛出服务器错误；Qwen3.6 与 Qwen2.5 时代模板完全忽略 `reasoning_effort`。**Off** 走 `enable_thinking: false`，所有测试过的系别都支持。没有默认级别：未选择的会话不发送 kwargs，由模板自身的默认值决定（Qwen3.8 为 xhigh，Qwen3.6 为普通思考）。
 - **范围**：适配器只经 wire 管理模型。它绝不启动、重启或监管 `llama-server` 本身，也不改动服务器的 `models_autoload` 设置——那仍是部署侧替代 `autoLoad` 的一行方案。
 
+<a id="discovery"></a>
 ## 发现
 
 配置卡上的 "Fetch available models" 经 `ctx.llm.registerModelDiscovery('llm-llamacpp', …)` 询问 `GET /v1/models`。路由器列表披露的远多于 OpenAI 兼容最小集，读取器将其呈现：
@@ -54,9 +73,21 @@
 
 发现不存储任何东西；采纳候选只更新草稿，`settings.yaml` 仍是唯一的目录权威。既未配置也未标注容量的模型回退到 `defaultContextWindow`（32,768——llama.cpp 自身默认）与 `maxTokens`（8,192）。
 
+<a id="errors"></a>
 ## 错误
 
 非 2xx 的 chat 响应以与 DeepSeek 适配器相同的 `httpErrorCode` 映射抛出 `LlmError`：`AUTH`（401/403）、`QUOTA`、`RATE_LIMIT`、`CONTEXT_WINDOW_EXCEEDED`、**`MODEL_NOT_LOADED`**（已知但未加载的模型）、`INVALID_REQUEST`（其余 400）、`SERVER`（5xx）、其余为 `HTTP_<status>`。超过 `loadTimeoutMs` 的加载等待抛 `TIMEOUT`；传输失败点名端点并链接原因。每个请求携带 dsh-llm `attributionHeaders()` 的共享归因头。
+
+<a id="dev-note"></a>
+## 开发备注
+
+<details>
+<summary>维护者工作背景——点击展开</summary>
+
+适配器的设置卡片、加载进度事件与生命周期决策由 [llama.cpp 设置卡片 note](../../../.agents/notes/implemented/architecture/2026-08-16-llamacpp-settings-card-and-load-progress.zh.md)持有；共享的 chat wire 以 `dsh-llm-deepseek` 构建后的 `./wire` 子路径发布，使纯 Node 的 profile 启动与 tsx 源码启动解析一致。
+
+</details>
+
 
 ## Model Experience
 
@@ -96,3 +127,5 @@
 - **名为 `llamacpp` 的 pi-ai 路由会冲突** —— `DUPLICATE_ADAPTER`，这是设计使然：采用本适配器时把路由移出 `llm-pi-ai:` 小节，因为生命周期管理正是你迁移它的原因。注册失败会在宿主日志中点名这次移除。
 - **思考级别是模板自身的，不是通用刻度** —— 只有 Qwen3.8 系读取 `reasoning_effort`（low/medium/xhigh；high 与 max 被以服务器错误拒绝，因此适配器在客户端即拒绝）。wire 上没有任何东西告知模型用的是哪个模板，因此读取更少级别的模型在目录条目中固定它们：在 Qwen3.6 时代模型上写 `reasoningEfforts: [off]`，可阻止选择器提供那些形同虚设的分级选项。缺省仍提供完整词汇。
 - **控制调用与 chat 共用超时词汇** —— `loadTimeoutMs` 覆盖一整次加载；没有单独的按 POST 控制超时。
+
+本包不发布运行时不变量伴生件：适配器不拥有事件序列或持久可变关系；生命周期与列表状态存在于 `llm` 注册表自有结构中，由该注册表自己的伴生件断言。

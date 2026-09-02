@@ -312,6 +312,9 @@ importers:
       '@deepseek-ai/dsh-web-app':
         specifier: workspace:^
         version: link:../../packages/bundle/web-app
+      '@deepseek-ai/dsh-web-scrapling':
+        specifier: workspace:^
+        version: link:../../packages/web/web-scrapling
       '@deepseek-ai/dsh-webhook':
         specifier: workspace:^
         version: link:../../packages/webhook/webhook

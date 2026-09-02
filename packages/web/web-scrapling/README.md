@@ -55,6 +55,8 @@ Selection: with no configured id, these providers auto-select when they are the 
 
 Indirectly, through `@deepseek-ai/dsh-tool-web`, which owns the `web_search` / `web_fetch` tool schemas, prompt guidance, and result presentation; this package contributes only normalized provider data or a thrown `WebError` code.
 
+No runtime invariant companion is published because the providers own no event sequence or mutable relation; every outcome is one subprocess exchange's JSON verdict carried through the `ctx.web` seam.
+
 #### KV Cache effect
 
 No direct invalidation; the named consumer owns any request-prefix changes.

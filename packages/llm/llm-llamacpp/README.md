@@ -88,6 +88,8 @@ Generated content affects later inputs only after the loop records it. Reasoning
 
 Recorded response content appends to the next request and does not invalidate its earlier reusable prefix. Transport metadata and usage accounting do not affect cache identity.
 
+No runtime invariant companion is published because the adapter owns no event sequence or durable mutable relation; lifecycle and listing state live in the `llm` registry's owned structures, asserted by the registry's own companion.
+
 ## Known Limitations and Deferred Work
 
 - **Vision needs both a projector and a declaration** — images serialize as OpenAI-style `image_url` content parts, which only a server started with a matching `--mmproj` can read. The adapter cannot detect that, so a model carries `inputModalities: [text, image]` in its catalog entry (`Fetch available models` proposes it from the live listing) and the host refuses images for every model without it, before they are attached.

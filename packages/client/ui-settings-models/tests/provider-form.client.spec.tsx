@@ -791,35 +791,35 @@ describe('llama.cpp provider card', () => {
       baseURL: 'http://127.0.0.1:8081',
       apiKeyEnv: 'LLAMACPP_API_KEY',
     })
-    const discover = options.discover ?? vi.fn(() => Promise.resolve(ok({
-      models: [{ id: 'qwen3-8b', contextWindow: 131_072 }],
-    })))
+    const discover = options.discover ?? vi.fn(() => Promise.resolve(ok([
+      { id: 'qwen3-8b', contextWindow: 131_072 },
+    ])))
     const mutate = options.mutate ?? vi.fn(() => Promise.resolve(ok(namespace)))
     const face = {
       llm: {
-        providers: vi.fn(() => Promise.resolve(ok({
-          providers: [{
+        listProviders: vi.fn(() => Promise.resolve(ok([
+          { id: 'llamacpp', name: 'llama.cpp' },
+        ]))),
+        listConfigurableProviders: vi.fn(() => Promise.resolve(ok([
+          {
             provider: 'llamacpp',
             displayName: 'llama.cpp',
             settingsNs: 'llm-llamacpp',
             settingsPath: [],
-            active: true,
             credentialOptional: true,
-          }],
-        }))),
-        models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
+          },
+        ]))),
         discoverModels: discover,
       },
       settings: {
         describe: vi.fn(() => Promise.resolve(ok({ writable: true, namespaces: [namespace] }))),
         update: vi.fn(),
-        replace: vi.fn(),
         mutate,
       },
       credentials: {
-        describe: vi.fn((payload: { refs: string[] }) => Promise.resolve(ok({
-          credentials: Object.fromEntries(payload.refs.map(ref => [ref, { configured: false, writable: true }])),
-        }))),
+        describe: vi.fn((refs: string[]) => Promise.resolve(ok(
+          Object.fromEntries(refs.map(ref => [ref, { configured: false, writable: true }])),
+        ))),
         set: vi.fn(() => Promise.resolve(ok({}))),
         unset: vi.fn(),
       },

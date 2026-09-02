@@ -297,6 +297,7 @@
   border: 2px solid var(--dsw-alias-label-primary-inverted);
   border-bottom-color: transparent;
   border-radius: 50%;
+  corner-shape: round;
   animation: dsh-load-banner-spin 900ms linear infinite;
 }
 

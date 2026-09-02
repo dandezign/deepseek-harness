@@ -88,8 +88,6 @@ Generated content affects later inputs only after the loop records it. Reasoning
 
 Recorded response content appends to the next request and does not invalidate its earlier reusable prefix. Transport metadata and usage accounting do not affect cache identity.
 
-No runtime invariant companion is published because the adapter owns no event sequence or durable mutable relation; lifecycle and listing state live in the `llm` registry's owned structures, asserted by the registry's own companion.
-
 ## Known Limitations and Deferred Work
 
 - **Vision needs both a projector and a declaration** — images serialize as OpenAI-style `image_url` content parts, which only a server started with a matching `--mmproj` can read. The adapter cannot detect that, so a model carries `inputModalities: [text, image]` in its catalog entry (`Fetch available models` proposes it from the live listing) and the host refuses images for every model without it, before they are attached.
@@ -98,3 +96,5 @@ No runtime invariant companion is published because the adapter owns no event se
 - **A pi-ai route named `llamacpp` collides** — `DUPLICATE_ADAPTER`, by design: remove the route out of the `llm-pi-ai:` section when adopting this adapter, because lifecycle management is why you are moving it. The registration failure names that removal in the host log.
 - **Thinking levels are the templates' own, not a universal scale** — only the Qwen3.8 family reads `reasoning_effort` (low/medium/xhigh; high and max are rejected with a server error, so the adapter refuses them client-side). Nothing on the wire announces which template a model uses, so a model that reads fewer levels pins them in its catalog entry: `reasoningEfforts: [off]` on a Qwen3.6-era model stops the picker offering graded levels that would silently do nothing. Omitted still offers the full vocabulary.
 - **Control calls share the chat timeout vocabulary** — `loadTimeoutMs` covers one whole load; there is no separate per-POST control timeout.
+
+No runtime invariant companion is published because the adapter owns no event sequence or durable mutable relation; lifecycle and listing state live in the `llm` registry's owned structures, asserted by the registry's own companion.

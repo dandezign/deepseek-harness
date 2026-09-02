@@ -55,8 +55,6 @@ Selection: with no configured id, these providers auto-select when they are the 
 
 Indirectly, through `@deepseek-ai/dsh-tool-web`, which owns the `web_search` / `web_fetch` tool schemas, prompt guidance, and result presentation; this package contributes only normalized provider data or a thrown `WebError` code.
 
-No runtime invariant companion is published because the providers own no event sequence or mutable relation; every outcome is one subprocess exchange's JSON verdict carried through the `ctx.web` seam.
-
 #### KV Cache effect
 
 No direct invalidation; the named consumer owns any request-prefix changes.
@@ -67,3 +65,5 @@ No direct invalidation; the named consumer owns any request-prefix changes.
 - **DuckDuckGo HTML endpoint is not an API** — result parsing depends on the endpoint's stable HTML shape; a 200 page with no parseable results degrades to empty sources, while a non-200 anomaly or rate-limit response fails loud as `WEB_PROVIDER_ERROR` instead of reading as an empty result.
 - **Per-request fetch controls are provider config, not tool arguments** — the seam's `WebFetchRequest` is `{url}` only; `cssSelector`-style extraction scoping stays deferred until the seam grows provider-neutral fetch controls ([seam design](../../../.agents/notes/implemented/architecture/2026-06-24-web-capability-seam.md)).
 - **StealthyFetcher's own browser is installed on first stealth use by Scrapling** — setup installs the Playwright Chromium engine for the dynamic mode; the stealth mode's Camoufox engine downloads on its first invocation and is not covered by `setupTimeoutMs`.
+
+No runtime invariant companion is published because the providers own no event sequence or mutable relation; every outcome is one subprocess exchange's JSON verdict carried through the `ctx.web` seam.

@@ -14,9 +14,10 @@
  */
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ConnectionHandle, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SessionRuntime, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { ModelCatalogDirectory } from './catalog.ts'
 import { ModelDirectory } from './directory.ts'
 import type { ModelLoadProgressState } from './slots.ts'
 
@@ -37,9 +38,10 @@ interface LiveState {
 
 /** The `ctx.modelDirectories` session model-selection service. */
 export class ModelDirectoryResolver extends Service {
-  static inject = ['connection', 'sessions', 'remote']
+  static inject = ['sessions', 'remote', 'remote.session']
 
   private readonly live: LiveState = { directories: new Map() }
+  private readonly catalog: ModelCatalogDirectory
 
   /** Monotonic id of the latest load transition received. */
   private progressSeq = 0
@@ -61,18 +63,15 @@ export class ModelDirectoryResolver extends Service {
   constructor(ctx: Context, config: { blockReason: () => string }) {
     super(ctx, 'modelDirectories')
     this.blockReason = config.blockReason
+    this.catalog = new ModelCatalogDirectory(ctx)
+    void this.catalog.load().catch(() => { /* selectors expose the shared error */ })
     ctx.on('connection/reset', () => {
+      this.catalog.resetGeneration()
       for (const directory of this.live.directories.values()) directory.resetConnected()
     })
-    // Either source can change the directory: registry topology commits and
-    // settings documents that carry provider catalogs or default selection.
-    const refresh = (): void => {
-      for (const directory of this.live.directories.values()) {
-        directory.load().catch(() => undefined)
-      }
-    }
-    ctx.remote.$on('llm/adapters-updated', refresh)
-    ctx.remote.$on('settings/document-updated', refresh)
+    ctx.remote.$on('llm/adapters-updated', () => { this.catalog.refresh() })
+    ctx.remote.$on('settings/document-updated', () => { this.catalog.refresh() })
+    ctx.remote.$on('credentials/reference-updated', () => { this.catalog.refresh() })
     // Model-load progress is transient transport state pushed at each
     // transition's commit point: hold it while loading, briefly after it
     // settles, and only clear the terminal state a newer load has not replaced.
@@ -97,14 +96,17 @@ export class ModelDirectoryResolver extends Service {
     const { live } = this
     const existing = live.directories.get(sessionId)
     if (existing !== undefined) return existing
-    const sessions = this.ctx.get('sessions') as SessionRuntime
+    const sessions = this.ctx.sessions
     const actx = sessions.scope(sessionId)
     if (actx === undefined) throw new Error(`ui-model-selection: session "${String(sessionId)}" resolved no scope`)
-    const connection = this.ctx.get('connection') as ConnectionHandle
+    const binding = sessions.binding(sessionId)
+    if (binding === undefined) throw new Error(`ui-model-selection: session "${String(sessionId)}" resolved no binding`)
     const directory = new ModelDirectory(
-      connection.api.sessions,
+      this.ctx.remote.session,
       sessionId,
       () => sessions.subagentAddress(sessionId) === undefined,
+      this.catalog,
+      binding.session.projections.faceOf('modelSelection'),
     )
     live.directories.set(sessionId, directory)
     // The composer cannot read this plugin (the dependency runs one way), so

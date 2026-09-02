@@ -5,7 +5,7 @@
  * merge lives here.
  */
 import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ModelDirectoryState } from './directory.ts'
 
 /** Live model-load progress the host pushes; null while nothing is in flight. */
@@ -33,7 +33,7 @@ export interface ModelSelectInjected {
    * it into the transient load/switch banner.
    */
   progress: SnapshotStore<ModelLoadProgressState>
-  /** Refresh the advisory directory (fire-and-forget; errors land on the store). */
+  /** Ensure the shared advisory catalog is loaded (errors land on the store). */
   load: () => void
   /**
    * Select a complete provider/model/reasoning selection.

@@ -9,6 +9,6 @@
  */
 
 export { httpErrorCode } from './adapter.ts'
-export { parseSse } from './sse.ts'
+export { DONE, parseSse } from './sse.ts'
 export { translate } from './translate.ts'
 export { serializeMessages } from './serialize.ts'

@@ -74,6 +74,8 @@ Nothing is stored by discovery; adopting candidates updates the draft, `settings
 ## Errors
 
 Non-2xx chat responses throw `LlmError` through the same `httpErrorCode` mapping the DeepSeek adapter owns: `AUTH` (401/403), `QUOTA`, `RATE_LIMIT`, `CONTEXT_WINDOW_EXCEEDED`, **`MODEL_NOT_LOADED`** (a recognized-but-unloaded model), `INVALID_REQUEST` (other 400s), `SERVER` (5xx), `HTTP_<status>` otherwise. Load waits that exceed `loadTimeoutMs` throw `TIMEOUT`; transport failures name the endpoint and chain the cause. Every request carries the shared attribution header from dsh-llm's `attributionHeaders()`.
+
+A mid-stream failure arrives as a terminal `data: {"error": …}` payload followed by a close without `[DONE]` — a Vulkan device loss during decode is the common case. The adapter surfaces that payload's own message through the same mapping (typically `SERVER`), so the turn error names the failure instead of the framing.
 ## Dev Note
 
 <details>

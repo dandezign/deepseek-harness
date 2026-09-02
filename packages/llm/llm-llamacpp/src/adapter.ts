@@ -9,7 +9,7 @@
  * @module dsh-llm-llamacpp/adapter
  */
 
-import { attributionHeaders, contentHasImage, LlmAdapter, LlmError, MODEL_NOT_LOADED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { attributionHeaders, contentHasImage, isModelNotLoadedError, LlmAdapter, LlmError, MODEL_NOT_LOADED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -18,7 +18,7 @@ import type {
   ResolvedRetryPolicy,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import { httpErrorCode, parseSse, translate } from '@deepseek-ai/dsh-llm-deepseek/wire'
+import { DONE, httpErrorCode, parseSse, translate } from '@deepseek-ai/dsh-llm-deepseek/wire'
 import type { WireError } from '@deepseek-ai/dsh-llm-deepseek'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
@@ -122,6 +122,42 @@ export const DEFAULT_CONTEXT_WINDOW = 32_768
 /** Default per-request output-token cap. */
 export const DEFAULT_MAX_TOKENS = 8_192
 const STREAM_IDLE_TIMEOUT_CODE = 'LLM_STREAM_IDLE_TIMEOUT'
+
+/**
+ * llama.cpp reports mid-stream failures as a terminal `data: {"error": …}` payload
+ * instead of an HTTP status, then closes the stream without `[DONE]` — a Vulkan
+ * device loss during decode is the common case. Surface the payload's own message:
+ * the framing error EOF would otherwise produce names the transport, never the failure.
+ * @param payloads - parsed SSE data payloads from the shared wire.
+ * @returns the payloads unchanged, except a terminal error payload throws in its place.
+ * @throws {LlmError} carrying the server's message, mapped through the shared status vocabulary.
+ */
+async function* failOnStreamErrorPayload(payloads: AsyncGenerator<string>): AsyncGenerator<string> {
+  for await (const payload of payloads) {
+    if (payload !== DONE) {
+      let parsed: WireError | undefined
+      try {
+        parsed = JSON.parse(payload) as WireError
+      } catch {
+        // Chunk payloads belong to the shared wire's translation; only the
+        // terminal error shape is intercepted here.
+      }
+      const error = parsed?.error
+      if (error !== undefined && error !== null) {
+        const detail = [error.code, error.type, error.message].filter(Boolean).join(' ')
+        const message = typeof error.message === 'string' && error.message.length > 0
+          ? error.message
+          : `llama.cpp stream error: ${payload}`
+        throw new LlmError(
+          message,
+          isModelNotLoadedError(detail) ? MODEL_NOT_LOADED_CODE : httpErrorCode(500, error),
+          { cause: payload },
+        )
+      }
+    }
+    yield payload
+  }
+}
 
 const LOW_REASONING_EFFORT = ReasoningEffortId('low')
 const MEDIUM_REASONING_EFFORT = ReasoningEffortId('medium')
@@ -454,7 +490,7 @@ export class LlamaCppAdapter extends LlmAdapter {
       throw new LlmError('llama.cpp returned no response body', 'EMPTY_RESPONSE')
     }
 
-    yield* translate(parseSse(response.body, onComment))
+    yield* translate(failOnStreamErrorPayload(parseSse(response.body, onComment)))
   }
 
   /** Release the lifecycle manager (registration teardown). */

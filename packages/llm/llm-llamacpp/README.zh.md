@@ -78,6 +78,8 @@ kind: "package-reference"
 
 非 2xx 的 chat 响应以与 DeepSeek 适配器相同的 `httpErrorCode` 映射抛出 `LlmError`：`AUTH`（401/403）、`QUOTA`、`RATE_LIMIT`、`CONTEXT_WINDOW_EXCEEDED`、**`MODEL_NOT_LOADED`**（已知但未加载的模型）、`INVALID_REQUEST`（其余 400）、`SERVER`（5xx）、其余为 `HTTP_<status>`。超过 `loadTimeoutMs` 的加载等待抛 `TIMEOUT`；传输失败点名端点并链接原因。每个请求携带 dsh-llm `attributionHeaders()` 的共享归因头。
 
+流中途的失败以一个终止性的 `data: {"error": …}` 载荷到达，随后流在无 `[DONE]` 的情况下关闭——常见成因是 decode 期间的 Vulkan 设备丢失。适配器会以相同的映射（通常为 `SERVER`）浮现该载荷自身的消息，使回合错误点名的失败本身，而非帧错误。
+
 <a id="dev-note"></a>
 ## 开发备注
 

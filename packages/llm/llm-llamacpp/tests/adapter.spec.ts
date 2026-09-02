@@ -111,6 +111,25 @@ describe('LlamaCppAdapter against a mock router', () => {
     expect(server.chatRequests).toHaveLength(2)
   })
 
+  it('surfaces a mid-stream error payload as the server\'s own message, not a framing error', async () => {
+    const server = await mockRouter({
+      models: [{ id: 'tiny' }],
+      chatEvents: [
+        '{"error":{"code":500,"message":"decode() failed: vk::Device::waitSemaphores: ErrorDeviceLost","type":"server_error"}}',
+      ],
+    })
+    // The mock writes the events then ends the response without [DONE], matching
+    // the live shape: the failure payload is the whole stream.
+    await expect(collect(adapterOf(connectionOf(server.url)).stream({
+      provider: 'llamacpp',
+      model: 'tiny',
+      messages: userMessage('hi'),
+    }))).rejects.toThrow(expect.objectContaining({
+      message: 'decode() failed: vk::Device::waitSemaphores: ErrorDeviceLost',
+      code: 'SERVER',
+    }))
+  })
+
   it('surfaces the not-loaded 400 as MODEL_NOT_LOADED when autoLoad is off', async () => {
     const server = await mockRouter({ models: [{ id: 'tiny' }] })
     await expect(collect(adapterOf(connectionOf(server.url, { autoLoad: false })).stream({

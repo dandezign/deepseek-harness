@@ -75,6 +75,12 @@ export interface MockRouter {
   loadCount: Map<string, number>
   /** Unload POSTs per model id. */
   unloadCount: Map<string, number>
+  /**
+   * Resolves once at least one load POST for `model` has been received and
+   * counted; resolves immediately when one already has. The barrier that lets
+   * a spec observe the count only after an in-flight dispatch has settled.
+   */
+  loadReceived(model: string): Promise<void>
   close(): Promise<void>
 }
 
@@ -100,6 +106,8 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
   )
   const loadCount = new Map<string, number>()
   const unloadCount = new Map<string, number>()
+  /** Tests blocked until the next load receipt, notified with the model id. */
+  const loadWaiters = new Set<(model: string) => void>()
   const chatRequests: Record<string, unknown>[] = []
   const loadTimers = new Set<NodeJS.Timeout>()
   const failOnce = new Set(options.failChatNotLoadedOnce ?? [])
@@ -210,6 +218,7 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
       const model = body.model ?? ''
       if (url === '/models/load') {
         loadCount.set(model, (loadCount.get(model) ?? 0) + 1)
+        for (const notify of [...loadWaiters]) notify(model)
         if (status.get(model) !== 'loaded' && status.get(model) !== 'loading') transition(model, 'loaded')
       } else {
         unloadCount.set(model, (unloadCount.get(model) ?? 0) + 1)
@@ -270,11 +279,20 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
     chatRequests,
     loadCount,
     unloadCount,
+    loadReceived: (model: string) => {
+      if ((loadCount.get(model) ?? 0) > 0) return Promise.resolve()
+      return new Promise<void>((resolve) => {
+        loadWaiters.add((received) => {
+          if (received === model) resolve()
+        })
+      })
+    },
     close: () => {
       for (const timer of loadTimers) clearTimeout(timer)
       // An open SSE response keeps the server from closing.
       for (const listener of listeners) listener.end()
       listeners.clear()
+      loadWaiters.clear()
       return new Promise((resolve) => { server.close(() => { resolve() }) })
     },
   }

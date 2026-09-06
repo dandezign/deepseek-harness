@@ -292,12 +292,16 @@ describe('ModelLifecycle', () => {
       autoUnload: 'never',
     })
     const wait = lifecycle.ensureLoaded('slow')
-    await new Promise((resolve) => { setTimeout(resolve, 40) })
+    // Barrier: dispose only after the load POST has been received and counted,
+    // so the captured count is stable — an in-flight dispatch cannot land its
+    // increment after the capture, and only a post-disposal issue could grow it.
+    await server.loadReceived('slow')
     lifecycle.dispose()
     await expect(wait).rejects.toMatchObject({ code: 'ABORTED' })
     // The load POST count must not grow after disposal: no further polls, no
     // re-issue on the next `unloaded` reading.
     const issued = server.loadCount.get('slow')
+    expect(issued).toBe(1)
     await new Promise((resolve) => { setTimeout(resolve, 60) })
     expect(server.loadCount.get('slow')).toBe(issued)
   })

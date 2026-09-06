@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-06-web-search-tavily-firecrawl-providers.md
+2026-09-06-web-search-tavily-firecrawl-providers.md: 90a4a791e2cab15f8ed99aff58d95155d63e9cd1
+2026-09-06-web-search-tavily-firecrawl-providers.zh.md: c0a62491f5ebbf6d105db86a2dc381163c32d420

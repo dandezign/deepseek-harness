@@ -312,9 +312,18 @@ importers:
       '@deepseek-ai/dsh-web-app':
         specifier: workspace:^
         version: link:../../packages/bundle/web-app
+      '@deepseek-ai/dsh-web-fetch-obscura':
+        specifier: workspace:^
+        version: link:../../packages/web/web-fetch-obscura
       '@deepseek-ai/dsh-web-scrapling':
         specifier: workspace:^
         version: link:../../packages/web/web-scrapling
+      '@deepseek-ai/dsh-web-search-firecrawl':
+        specifier: workspace:^
+        version: link:../../packages/web/web-search-firecrawl
+      '@deepseek-ai/dsh-web-search-tavily':
+        specifier: workspace:^
+        version: link:../../packages/web/web-search-tavily
       '@deepseek-ai/dsh-webhook':
         specifier: workspace:^
         version: link:../../packages/webhook/webhook
@@ -9359,6 +9368,25 @@ importers:
         specifier: workspace:^
         version: link:../web
 
+  packages/web/web-fetch-obscura:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
+      '@deepseek-ai/dsh-timeout':
+        specifier: workspace:^
+        version: link:../../util/timeout
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:^
+        version: link:../web
+
   packages/web/web-scrapling:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -9425,7 +9453,39 @@ importers:
         specifier: workspace:^
         version: link:../web
 
+  packages/web/web-search-firecrawl:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-launch-environment':
+        specifier: workspace:^
+        version: link:../../util/launch-environment
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:^
+        version: link:../web
+
   packages/web/web-search-perplexity:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-launch-environment':
+        specifier: workspace:^
+        version: link:../../util/launch-environment
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:^
+        version: link:../web
+
+  packages/web/web-search-tavily:
     dependencies:
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery

@@ -3294,6 +3294,33 @@ export interface Config {
 
 Source: [`packages/web/web-fetch-http/src/index.ts:32`](../packages/web/web-fetch-http/src/index.ts)
 
+<a id="deepseek-aidsh-web-fetch-obscura"></a>
+
+## `@deepseek-ai/dsh-web-fetch-obscura`
+
+Requires: `web`
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills defaults). */
+export interface Config {
+  /**
+   * Absolute path of the Obscura CLI executable. Defaults to the managed
+   * install at `$DSH_HOME/tools/obscura/` (obscura.exe on Windows).
+   */
+  commandPath?: string
+  /** Extraction format requested from the rendered page. Defaults to `markdown`. */
+  dumpFormat?: 'markdown' | 'text' | 'html'
+  /** Probe the raw HTTP status before rendering. Defaults to true. */
+  statusProbe?: boolean
+  /** Maximum returned characters for one fetch. */
+  maxBodyChars?: number
+  /** Deadline for each probe and render exchange in milliseconds. */
+  timeoutMs?: number
+}
+```
+
+Source: [`packages/web/web-fetch-obscura/src/index.ts:53`](../packages/web/web-fetch-obscura/src/index.ts)
+
 <a id="deepseek-aidsh-web-scrapling"></a>
 
 ## `@deepseek-ai/dsh-web-scrapling`
@@ -3380,6 +3407,32 @@ export interface Config {
 
 Source: [`packages/web/web-search-exa/src/index.ts:35`](../packages/web/web-search-exa/src/index.ts)
 
+<a id="deepseek-aidsh-web-search-firecrawl"></a>
+
+## `@deepseek-ai/dsh-web-search-firecrawl`
+
+Requires: `web`
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /**
+   * Firecrawl API key. Falls back to `$FIRECRAWL_API_KEY`. Empty runs keyless:
+   * no `Authorization` header is sent and Firecrawl enforces its keyless rate
+   * limits.
+   */
+  apiKey?: string
+  /** Endpoint base; `/{version}/search` is appended. Defaults to the public API. */
+  baseURL?: string
+  /** API version appended to the endpoint base. Defaults to `v2`. */
+  apiVersion?: 'v1' | 'v2'
+  /** Default result count when a request carries no `maxResults`. Omitted = 10. */
+  numResults?: number
+}
+```
+
+Source: [`packages/web/web-search-firecrawl/src/index.ts:34`](../packages/web/web-search-firecrawl/src/index.ts)
+
 <a id="deepseek-aidsh-web-search-perplexity"></a>
 
 ## `@deepseek-ai/dsh-web-search-perplexity`
@@ -3403,6 +3456,30 @@ export interface Config {
 ```
 
 Source: [`packages/web/web-search-perplexity/src/index.ts:30`](../packages/web/web-search-perplexity/src/index.ts)
+
+<a id="deepseek-aidsh-web-search-tavily"></a>
+
+## `@deepseek-ai/dsh-web-search-tavily`
+
+Requires: `web`
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /** Tavily API key. Falls back to `$TAVILY_API_KEY`. Empty → provider unavailable. */
+  apiKey?: string
+  /** Endpoint base; `/search` is appended. Defaults to the public API. */
+  baseURL?: string
+  /** Retrieval depth sent as Tavily's `search_depth`. Defaults to `basic`. */
+  searchDepth?: 'basic' | 'advanced'
+  /** Whether Tavily generates an answer alongside the results. Defaults to true. */
+  includeAnswer?: boolean
+  /** Default result count when a request carries no `maxResults`. Omitted = 10. */
+  numResults?: number
+}
+```
+
+Source: [`packages/web/web-search-tavily/src/index.ts:37`](../packages/web/web-search-tavily/src/index.ts)
 
 <a id="deepseek-aidsh-webhook-github"></a>
 

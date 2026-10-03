@@ -65,7 +65,11 @@ export async function buildModelCatalog(
     .filter(group => group.models.length > 0)
   return {
     default: { ...defaultSelection },
-    routableProviders: groups.map(group => group.id),
+    // Every registered provider answers "routable": catalog membership is
+    // advisory (a server serving a model it stopped advertising is missing
+    // from the groups yet perfectly usable), so the adapter registry is the
+    // authority, not the group list.
+    routableProviders: providers.map(provider => provider.id),
     groups,
     failures: catalog.flatMap(item => item.kind === 'failure' ? [item.failure] : []),
   }

@@ -1,6 +1,37 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/web-scrapling/README.md
-README.md: bfdaa6372e36431c0324aa35ccb9501871a3806f
-README.zh.md: 000d52af8d5174fb9e22fd0954275b8d11937ac3
+/:
+  en: a4909cbd22a3aadc
+  zh: 605b2bff3dbba23c
+/deepseek-ai-dsh-web-scrapling:
+  en: 5a45fc84b3b2089c
+  zh: 5f1f8c1ea71d9628
+/deepseek-ai-dsh-web-scrapling/summary:
+  en: 6651ca813459ff4b
+  zh: dd1cafdb9631da13
+/deepseek-ai-dsh-web-scrapling/table-of-contents:
+  en: b6ac795bada7fa46
+  zh: f808fa81c77b74d8
+/deepseek-ai-dsh-web-scrapling/providers:
+  en: 6f1ed384b44b5bfb
+  zh: 8628c1003acf1fa7
+/deepseek-ai-dsh-web-scrapling/managed-python-environment:
+  en: 79e49287de666f9b
+  zh: 9e61c98ca0d4a3d9
+/deepseek-ai-dsh-web-scrapling/config:
+  en: 6df5c680a5ff2a76
+  zh: c32aa4ccd893990b
+/deepseek-ai-dsh-web-scrapling/dev-note:
+  en: 2de9c059c63f1d8a
+  zh: e9f10dc281a856f4
+/deepseek-ai-dsh-web-scrapling/model-experience:
+  en: 5f031d68f913bf63
+  zh: cf5a863613edc768
+/deepseek-ai-dsh-web-scrapling/model-experience/kv-cache-effect:
+  en: 40294c1c31b74824
+  zh: b3798469ae721b0e
+/deepseek-ai-dsh-web-scrapling/known-limitations-and-deferred-work:
+  en: 85e5b4b55ff033b8
+  zh: 4801665d7b63e349

@@ -1603,6 +1603,98 @@ export interface Config extends ProtocolConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-deepseek-api-key -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-llamacpp -->
+<a id="deepseek-aidsh-llm-llamacpp"></a>
+
+## `@deepseek-ai/dsh-llm-llamacpp`
+
+- `inject`: `llm`
+- `refs`: [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
+- `source`: [`packages/llm/llm-llamacpp/src/index.ts:96`](../packages/llm/llm-llamacpp/src/index.ts)
+
+```ts config-catalog
+/**
+ * Plugin config, validated by the same-named schemastery schema and doubling
+ * as the `llm-llamacpp` settings-section shape. Everything is optional: with
+ * neither a top-level `baseURL` nor any `providers` entry the plugin mounts
+ * dormant.
+ */
+export interface Config extends LlamaCppProviderProfile {
+  /**
+   * Additional servers, keyed by the provider route id each one owns. A
+   * second llama.cpp box is a second entry here rather than a second
+   * composition row; the top-level profile remains the `llamacpp` route.
+   */
+  providers?: Record<string, LlamaCppProviderProfile>
+}
+
+/**
+ * One llama.cpp server's settings. The plugin's own top level is a profile
+ * too — the single-server shape most deployments write — and `providers` adds
+ * further named routes beside it, each its own server with its own lifecycle.
+ */
+export interface LlamaCppProviderProfile {
+  /** Server origin (`http://host:port`); a trailing `/v1` is tolerated and stripped. Falls back to $LLAMACPP_BASE_URL. */
+  baseURL?: string
+  /** Credential reference resolved per request (default `LLAMACPP_API_KEY`); a server without `--api-key` needs none. */
+  apiKeyEnv?: string
+  /** Selector label for the provider (default `llama.cpp`). */
+  displayName?: string
+  /** Ensure the requested model is loaded before each chat request (default true). */
+  autoLoad?: boolean
+  /** `on-switch` unloads the previously resident model after a successful switch, once no request holds it (default `never`). */
+  autoUnload?: 'never' | 'on-switch'
+  /** Ceiling for one model load wait in ms (default 600,000 — cold GGUF loads take minutes). */
+  loadTimeoutMs?: number
+  /** Poll interval for model status transitions in ms (default 1,000, minimum 100). */
+  pollIntervalMs?: number
+  /** Watch `GET /models/sse` for transitions, relaxing the listing poll to a safety net (default true). */
+  watchEvents?: boolean
+  /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
+  streamIdleTimeoutMs?: number
+  /** Positive context capacity used when the selected model has no exact value (default 32,768). */
+  defaultContextWindow?: number
+  /** Default per-request output cap; a model's own cap and explicit request values win (default 8,192). */
+  maxTokens?: number
+  /** Advisory models; `Fetch available models` on the configuration card proposes entries with capacities derived from the live listing. */
+  models?: LlamaCppCatalogModel[]
+  /** Provider-owned model-request retry policy; omission uses normal defaults. */
+  retryPolicy?: RetryPolicyConfig
+}
+
+/** One optional model entry advertised by the adapter. */
+export interface LlamaCppCatalogModel {
+  /** Wire model id accepted by the configured endpoint. */
+  id: string
+  /** Selector label; defaults to {@link id}. */
+  name?: string
+  /** Optional selector detail; the endpoint discloses none, so this is the deployment's own note. */
+  description?: string
+  /** Known combined context capacity; omitted falls back to the route default. */
+  contextWindow?: number
+  /** Per-request output cap for this model; omission falls back to the route default. */
+  maxTokens?: number
+  /**
+   * Request modalities this model accepts. Only a server started with an
+   * `--mmproj` projector can read images, and only for the model it projects,
+   * so this is the deployment's declaration rather than something the adapter
+   * can infer; `Fetch available models` proposes it from the live listing.
+   * Omitted means text-only.
+   */
+  inputModalities?: ('text' | 'image')[]
+  /**
+   * Thinking levels this model's chat template actually reads. Templates
+   * disagree — the Qwen3.8 family grades `reasoning_effort`, while Qwen3.6-
+   * and Qwen2.5-era templates ignore it and honor only `enable_thinking` —
+   * and nothing on the wire announces which. Declaring the subset keeps the
+   * picker from offering a level that would silently do nothing here.
+   * Omitted offers the full vocabulary.
+   */
+  reasoningEfforts?: ('low' | 'medium' | 'xhigh' | 'off')[]
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-llamacpp -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-pi-ai -->
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 
@@ -4182,6 +4274,69 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-fetch-http -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-fetch-obscura -->
+<a id="deepseek-aidsh-web-fetch-obscura"></a>
+
+## `@deepseek-ai/dsh-web-fetch-obscura`
+
+- `inject`: `web`
+- `source`: [`packages/web/web-fetch-obscura/src/index.ts:53`](../packages/web/web-fetch-obscura/src/index.ts)
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills defaults). */
+export interface Config {
+  /**
+   * Absolute path of the Obscura CLI executable. Defaults to the managed
+   * install at `$DSH_HOME/tools/obscura/` (obscura.exe on Windows).
+   */
+  commandPath?: string
+  /** Extraction format requested from the rendered page. Defaults to `markdown`. */
+  dumpFormat?: 'markdown' | 'text' | 'html'
+  /** Probe the raw HTTP status before rendering. Defaults to true. */
+  statusProbe?: boolean
+  /** Maximum returned characters for one fetch. */
+  maxBodyChars?: number
+  /** Deadline for each probe and render exchange in milliseconds. */
+  timeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-fetch-obscura -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-scrapling -->
+<a id="deepseek-aidsh-web-scrapling"></a>
+
+## `@deepseek-ai/dsh-web-scrapling`
+
+- `inject`: `web`
+- `source`: [`packages/web/web-scrapling/src/index.ts:61`](../packages/web/web-scrapling/src/index.ts)
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills defaults). */
+export interface Config {
+  /** Base Python 3.10+ interpreter for venv creation; absent = platform candidates. */
+  pythonCommand?: string
+  /** Directory receiving the managed venv. Defaults to `$DSH_HOME/web-scrapling`. */
+  venvRoot?: string
+  /** Create and install the venv on first use; `false` fails loud with instructions. */
+  autoSetup?: boolean
+  /** Scrapling acquisition mode for fetch; stealth/dynamic drive a browser engine. */
+  fetchMode?: 'standard' | 'stealth' | 'dynamic'
+  /** Stealth mode: attempt Cloudflare challenge solving. */
+  solveCloudflare?: boolean
+  /** Dynamic mode: wait for network idle before extraction. */
+  networkIdle?: boolean
+  /** Maximum extracted characters returned by one fetch. */
+  maxBodyChars?: number
+  /** Deadline for one search exchange in milliseconds. */
+  searchTimeoutMs?: number
+  /** Deadline for one fetch exchange in milliseconds. */
+  fetchTimeoutMs?: number
+  /** Bound for the whole one-time setup pipeline in milliseconds. */
+  setupTimeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-scrapling -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-deepseek -->
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 
@@ -4237,6 +4392,33 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-exa -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-firecrawl -->
+<a id="deepseek-aidsh-web-search-firecrawl"></a>
+
+## `@deepseek-ai/dsh-web-search-firecrawl`
+
+- `inject`: `web`
+- `source`: [`packages/web/web-search-firecrawl/src/index.ts:34`](../packages/web/web-search-firecrawl/src/index.ts)
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /**
+   * Firecrawl API key. Falls back to `$FIRECRAWL_API_KEY`. Empty runs keyless:
+   * no `Authorization` header is sent and Firecrawl enforces its keyless rate
+   * limits.
+   */
+  apiKey?: string
+  /** Endpoint base; `/{version}/search` is appended. Defaults to the public API. */
+  baseURL?: string
+  /** API version appended to the endpoint base. Defaults to `v2`. */
+  apiVersion?: 'v1' | 'v2'
+  /** Default result count when a request carries no `maxResults`. Omitted = 10. */
+  numResults?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-firecrawl -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-perplexity -->
 <a id="deepseek-aidsh-web-search-perplexity"></a>
 
@@ -4261,6 +4443,31 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-perplexity -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-tavily -->
+<a id="deepseek-aidsh-web-search-tavily"></a>
+
+## `@deepseek-ai/dsh-web-search-tavily`
+
+- `inject`: `web`
+- `source`: [`packages/web/web-search-tavily/src/index.ts:37`](../packages/web/web-search-tavily/src/index.ts)
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /** Tavily API key. Falls back to `$TAVILY_API_KEY`. Empty → provider unavailable. */
+  apiKey?: string
+  /** Endpoint base; `/search` is appended. Defaults to the public API. */
+  baseURL?: string
+  /** Retrieval depth sent as Tavily's `search_depth`. Defaults to `basic`. */
+  searchDepth?: 'basic' | 'advanced'
+  /** Whether Tavily generates an answer alongside the results. Defaults to true. */
+  includeAnswer?: boolean
+  /** Default result count when a request carries no `maxResults`. Omitted = 10. */
+  numResults?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-tavily -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-webhook-github -->
 <a id="deepseek-aidsh-webhook-github"></a>

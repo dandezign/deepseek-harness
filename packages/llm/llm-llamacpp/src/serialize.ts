@@ -16,10 +16,10 @@
  */
 
 import { contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, RequestMessage } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import { serializeMessages } from '@deepseek-ai/dsh-llm-deepseek/wire'
-import type { WireMessage, WireRequest, WireTool } from '@deepseek-ai/dsh-llm-deepseek'
+import type { WireMessage, WireRequest, WireTool } from '@deepseek-ai/dsh-llm-deepseek/wire'
 
 /** One OpenAI-compatible multimodal content part. */
 export type WireContentPart =
@@ -102,11 +102,6 @@ async function multimodalContent(
       parts.push(await imagePart(block, attachments))
       continue
     }
-    // Tool results ride in user messages in the harness vocabulary; an image
-    // inside one is still the user's input to this turn.
-    if (block.type === 'tool-result') {
-      parts.push(...await multimodalContent(block.content, attachments))
-    }
   }
   return parts
 }
@@ -119,7 +114,7 @@ async function multimodalContent(
  * @returns the wire messages, order preserved.
  */
 export async function serializeMultimodalMessages(
-  messages: Message[],
+  messages: readonly RequestMessage[],
   attachments: AttachmentStore,
 ): Promise<MultimodalWireMessage[]> {
   const wire: MultimodalWireMessage[] = []

@@ -60,9 +60,11 @@ export class ModelDirectoryResolver extends Service {
 
   /**
    * @param ctx - owning root context (the service registers itself as `models`).
+   * @param config - the bound translator for this plugin's own dictionary.
    */
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config: { blockReason: () => string }) {
     super(ctx, 'modelDirectories')
+    this.blockReason = config.blockReason
     this.catalog = new ModelCatalogDirectory(ctx)
     void this.catalog.load().catch(() => { /* selectors expose the shared error */ })
     ctx.on('connection/reset', () => {
@@ -112,6 +114,27 @@ export class ModelDirectoryResolver extends Service {
       (name, attributes) => this.ctx.get('productAnalytics')?.track(name, attributes),
     )
     live.directories.set(binding, directory)
+    // The composer cannot read this plugin (the dependency runs one way), so
+    // the block is pushed: the Host says whether an adapter serves the
+    // session's route, and only a definite `false` makes the input inert.
+    // `null` — before the first load, or after one failed — must not, or a
+    // slow or unreachable Host would lock a working composer.
+    const conversation = this.ctx.get('conversation')
+    if (conversation !== undefined) {
+      const publish = (): void => {
+        conversation.blocks.set(sessionId, directory.store.getSnapshot().routable === false
+          ? { reason: this.blockReason() }
+          : undefined)
+      }
+      publish()
+      actx.effect(() => {
+        const stop = directory.store.subscribe(publish)
+        return () => {
+          stop()
+          conversation.blocks.set(sessionId, undefined)
+        }
+      }, 'ui-model-selection: composer block')
+    }
     actx.effect(() => () => {
       directory.dispose()
       live.directories.delete(binding)

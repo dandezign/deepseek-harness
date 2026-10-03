@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-llamacpp-stream-error-payload-fails-loud.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-02-llamacpp-stream-error-payload-fails-loud.md
-2026-09-02-llamacpp-stream-error-payload-fails-loud.md: 478dd33e99f99b9927232f2734625c29fb507877
-2026-09-02-llamacpp-stream-error-payload-fails-loud.zh.md: f304dd5e6380bb4393256be715794dbf2bbdc6bc
+/agent-note-llama-cpp-mid-stream-error-payloads-surface-as-server-errors:
+  en: b8481fbf5210d88a
+  zh: fa8e65acad1b3c12
+/agent-note-llama-cpp-mid-stream-error-payloads-surface-as-server-errors/problem:
+  en: 90ad285d37793356
+  zh: 8890b39d039390d9
+/agent-note-llama-cpp-mid-stream-error-payloads-surface-as-server-errors/decision:
+  en: ca974534c6b75971
+  zh: 18c9b5446c0abf73
+/agent-note-llama-cpp-mid-stream-error-payloads-surface-as-server-errors/alternatives-considered:
+  en: becf5e5bef0d8445
+  zh: 7537127a1624410f
+/agent-note-llama-cpp-mid-stream-error-payloads-surface-as-server-errors/verification:
+  en: 9731ff2980bd3217
+  zh: 6a1c1132c3446b4d
+/agent-note-llama-cpp-mid-stream-error-payloads-surface-as-server-errors/consequences:
+  en: c58af69463e05cbe
+  zh: 354fc74a02095277

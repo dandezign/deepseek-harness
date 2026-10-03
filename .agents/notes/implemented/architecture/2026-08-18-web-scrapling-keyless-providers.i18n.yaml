@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-18-web-scrapling-keyless-providers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-18-web-scrapling-keyless-providers.md
-2026-08-18-web-scrapling-keyless-providers.md: c68608d4c807af6236c6719cc07b3fd777303589
-2026-08-18-web-scrapling-keyless-providers.zh.md: 6597336a9890d8f4ee8079e9182961683d7649b0
+/agent-note-keyless-scrapling-web-providers-over-a-managed-python-environment:
+  en: 3c7e2bf90815aec7
+  zh: 3f5d4288ea347002
+/agent-note-keyless-scrapling-web-providers-over-a-managed-python-environment/problem:
+  en: c8f20a987034e198
+  zh: 2f69ea3cabdc8a00
+/agent-note-keyless-scrapling-web-providers-over-a-managed-python-environment/decision:
+  en: 6dd4a8836289303f
+  zh: 9950e8cf9bbbb68a
+/agent-note-keyless-scrapling-web-providers-over-a-managed-python-environment/package-topology:
+  en: 82552e3ed8da8024
+  zh: f9e931d977f9280c
+/agent-note-keyless-scrapling-web-providers-over-a-managed-python-environment/alternatives-considered:
+  en: af9c54178accad67
+  zh: 2e153578598c0fca
+/agent-note-keyless-scrapling-web-providers-over-a-managed-python-environment/consequences:
+  en: 39a3f840bced59ed
+  zh: ebb6990bc66f1593

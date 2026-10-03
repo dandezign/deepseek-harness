@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-08-16-llamacpp-settings-card-and-load-progress.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-16-llamacpp-settings-card-and-load-progress.md
-2026-08-16-llamacpp-settings-card-and-load-progress.md: 7cadb5de2634b7402cdd5d874113d5178601f8da
-2026-08-16-llamacpp-settings-card-and-load-progress.zh.md: 9e222cf3bf9e867e2035e99485174a218155159a
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel:
+  en: bda51517f00790f1
+  zh: dc557c5f3cbde969
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel/problem:
+  en: 57a1045dbf2531b6
+  zh: 139e291bbabc839b
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel/decision:
+  en: a169665227fb8605
+  zh: ddcf37631d6b0be6
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel/consequences:
+  en: 2795d6f3609bc079
+  zh: 0d90bd156999945a
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel/alternatives-considered:
+  en: 6e84064b8ceaa944
+  zh: 57de9798ff433b8e
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel/the-route-collision-a-real-deployment-hit:
+  en: 4134afd3e6f99187
+  zh: 2452ec467e976310
+/agent-note-llama-cpp-settings-card-optional-credentials-and-load-progress-on-the-forwarded-event-channel/thinking-control-the-template-s-own-vocabulary-verified-by-rendering-it:
+  en: 45d58984e48d9ab3
+  zh: 0d08403f9c853107

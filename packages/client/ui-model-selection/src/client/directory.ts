@@ -177,8 +177,10 @@ export class ModelDirectory {
       return
     }
     const selection = projected.next ?? catalog.value.default
-    const routable = catalog.value.groups.some(group => group.id === selection.provider
-      && group.models.some(model => model.id === selection.model))
+    // Host-reported: an adapter serves this provider. Catalog membership is
+    // advisory — a route serving a model it stopped advertising is missing
+    // from the groups yet perfectly usable — so the registry decides.
+    const routable = catalog.value.routableProviders.includes(selection.provider)
     this.store.set({
       current: selection,
       ...retainedEffort === undefined ? {} : { retainedEffort },

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-02-duckduckgo-anomaly-fails-loud.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-02-duckduckgo-anomaly-fails-loud.md
-2026-09-02-duckduckgo-anomaly-fails-loud.md: 6072cce84ec4a51588849dd1d72ac625701bd504
-2026-09-02-duckduckgo-anomaly-fails-loud.zh.md: 60d74372b6af41c75060cd1caf6ddcfdca7c9c94
+/agent-note-duckduckgo-anomaly-responses-surface-as-provider-errors-instead-of-empty-results:
+  en: 639b1d9c88829ebb
+  zh: 9a6ccbbb0a5aba81
+/agent-note-duckduckgo-anomaly-responses-surface-as-provider-errors-instead-of-empty-results/problem:
+  en: 888070098c635f75
+  zh: 59d013740ad1a59e
+/agent-note-duckduckgo-anomaly-responses-surface-as-provider-errors-instead-of-empty-results/decision:
+  en: a8aee1cb0e9e6312
+  zh: 45468e1081276c73
+/agent-note-duckduckgo-anomaly-responses-surface-as-provider-errors-instead-of-empty-results/alternatives-considered:
+  en: 0ac701cba993de61
+  zh: d0d558663b0e0d7b
+/agent-note-duckduckgo-anomaly-responses-surface-as-provider-errors-instead-of-empty-results/verification:
+  en: 74199bfb5379701c
+  zh: 9273e763120d0b7e
+/agent-note-duckduckgo-anomaly-responses-surface-as-provider-errors-instead-of-empty-results/consequences:
+  en: 98237d04310bf407
+  zh: 5500d8602c9f1469

@@ -1,6 +1,61 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/web-search-tavily/README.md
-README.md: 8f73aec093f26b1cd1f0bdbdb08118768027f66d
-README.zh.md: 95ffd4479069153e3c6fa2e780df1f29c776ce4b
+/:
+  en: a74d9301fdee6707
+  zh: 783b13de166f2460
+/deepseek-ai-dsh-web-search-tavily:
+  en: 637d1159b42bc6d3
+  zh: 30465300de404258
+/deepseek-ai-dsh-web-search-tavily/summary:
+  en: 8fe65d53ca705eea
+  zh: 29eb6434fba92150
+/deepseek-ai-dsh-web-search-tavily/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-web-search-tavily/use-this-package:
+  en: d8d93f1df844531a
+  zh: f7264827ec2476e6
+/deepseek-ai-dsh-web-search-tavily/use-this-package/when-to-choose-it:
+  en: 0e452b0cdb6b6646
+  zh: fa22368c1f84de0c
+/deepseek-ai-dsh-web-search-tavily/use-this-package/minimal-configuration:
+  en: 6790398218d4a732
+  zh: 74b22fc5ca6ad410
+/deepseek-ai-dsh-web-search-tavily/use-this-package/what-a-search-returns:
+  en: 255fbfd01868ef7b
+  zh: b27757d73ecb8e6f
+/deepseek-ai-dsh-web-search-tavily/use-this-package/failures-and-recovery:
+  en: ad77f6b77f1de29e
+  zh: 00b81ccabc61fa76
+/deepseek-ai-dsh-web-search-tavily/understand-the-implementation:
+  en: 9842c69ad3636bb3
+  zh: a2f5528eb01ec335
+/deepseek-ai-dsh-web-search-tavily/understand-the-implementation/design-philosophy:
+  en: 9ef90e98e79566ed
+  zh: 006b92ff51dc03e1
+/deepseek-ai-dsh-web-search-tavily/understand-the-implementation/source-map:
+  en: 4705d37110d2b830
+  zh: 091ac69620f64fef
+/deepseek-ai-dsh-web-search-tavily/understand-the-implementation/request-and-mapping-flow:
+  en: cc8de37137121897
+  zh: 6047f2f92df5bbe7
+/deepseek-ai-dsh-web-search-tavily/further-exploration:
+  en: e6dc256e72294d44
+  zh: 64fbbf760ba3164d
+/deepseek-ai-dsh-web-search-tavily/model-experience:
+  en: aa06944fd5e36f77
+  zh: 2e74e41cb722ae20
+/deepseek-ai-dsh-web-search-tavily/model-experience/kv-cache-effect:
+  en: 40294c1c31b74824
+  zh: 30a0be1828be6315
+/deepseek-ai-dsh-web-search-tavily/known-limitations-and-deferred-work:
+  en: 15418f7c4c487707
+  zh: 266df8754e82ce72
+/deepseek-ai-dsh-web-search-tavily/known-limitations-and-deferred-work/dev-note:
+  en: 7f775cc79dbce94b
+  zh: dc946e3c86b91626
+/deepseek-ai-dsh-web-search-tavily/known-limitations-and-deferred-work/dev-note/future-wider-tavily-control-surface:
+  en: 06b45d833ef42846
+  zh: 4327293e8378fd3a

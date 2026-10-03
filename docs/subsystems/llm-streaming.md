@@ -1103,6 +1103,27 @@ The provider topology changed: an adapter registered or unregistered routes, or 
 
 Source: [`packages/llm/llm/src/types.ts`](../../packages/llm/llm/src/types.ts)
 
+<a id="llmmodel-load-progress--emit"></a>
+
+#### `llm/model-load-progress` — emit
+
+One live model-load transition reported by an adapter that owns model lifecycle (for example a llama.cpp router loading the model a request targets). Transport progress only: never model input, never logged. Emitted at each transition's commit point — when the load starts, and when it settles ready or failed.
+
+```ts cordis-catalog
+/**
+ * One live model-load transition reported by an adapter that owns model
+ * lifecycle (for example a llama.cpp router loading the model a request
+ * targets). Transport progress only: never model input, never logged.
+ * Emitted at each transition's commit point — when the load starts, and
+ * when it settles ready or failed.
+ * @mode emit
+ * @param progress - the transition, JSON-safe.
+ */
+'llm/model-load-progress'(progress: LlmModelLoadProgress): void
+```
+
+Source: [`packages/llm/llm/src/types.ts`](../../packages/llm/llm/src/types.ts)
+
 <a id="llmstream--waterfall"></a>
 
 #### `llm/stream` — waterfall

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-web-fetch-obscura-provider.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-06-web-fetch-obscura-provider.md
-2026-09-06-web-fetch-obscura-provider.md: 9f0e4508e63aa2a06cabab133fdcffab6dc910c7
-2026-09-06-web-fetch-obscura-provider.zh.md: d06d4ee9a8e9df8a7d6262a705ca3dee29134cbc
+/agent-note-obscura-fetch-provider-keeps-statuscode-truthful-through-a-status-probe:
+  en: ff73526db05ae152
+  zh: 6f10311d998f724c
+/agent-note-obscura-fetch-provider-keeps-statuscode-truthful-through-a-status-probe/problem:
+  en: b3e51e43b336dd10
+  zh: 64c760b489a4545f
+/agent-note-obscura-fetch-provider-keeps-statuscode-truthful-through-a-status-probe/decision:
+  en: 1ebb702c6278eacd
+  zh: 3d7997a8911c2064
+/agent-note-obscura-fetch-provider-keeps-statuscode-truthful-through-a-status-probe/alternatives-considered:
+  en: e68dde2bb40f5552
+  zh: 84435052f318a2e9
+/agent-note-obscura-fetch-provider-keeps-statuscode-truthful-through-a-status-probe/verification:
+  en: 6e646b7d621b9129
+  zh: 8092a7f180946e16
+/agent-note-obscura-fetch-provider-keeps-statuscode-truthful-through-a-status-probe/consequences:
+  en: 2530c5b10dbb10bb
+  zh: c676f306b813d46d

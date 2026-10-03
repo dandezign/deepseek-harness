@@ -1,6 +1,61 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/web-fetch-obscura/README.md
-README.md: d3f33c9cdc568c91e211b1bbb0d9dd2da80fd9a8
-README.zh.md: 23d124e1734662a4deb710ed6df3c76509994315
+/:
+  en: 5aa3ce9b9f1b087d
+  zh: a9abefec6390d5b1
+/deepseek-ai-dsh-web-fetch-obscura:
+  en: 1220043c06bad441
+  zh: 67d72d83790fca63
+/deepseek-ai-dsh-web-fetch-obscura/summary:
+  en: cff86bdd4fd4f83c
+  zh: 9e7bef53c6bbc112
+/deepseek-ai-dsh-web-fetch-obscura/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-web-fetch-obscura/use-this-package:
+  en: 862ee5dfebc4d5a3
+  zh: c4715c5b2e375037
+/deepseek-ai-dsh-web-fetch-obscura/use-this-package/when-to-choose-it:
+  en: e77d6506a76c09e4
+  zh: 086692877d8863df
+/deepseek-ai-dsh-web-fetch-obscura/use-this-package/minimal-configuration:
+  en: 58e4a26f5185f9c7
+  zh: 6b20d2cb949abd83
+/deepseek-ai-dsh-web-fetch-obscura/use-this-package/what-a-fetch-returns:
+  en: db53a3b944755d6a
+  zh: 9f71565980c18f83
+/deepseek-ai-dsh-web-fetch-obscura/use-this-package/failures-and-recovery:
+  en: af4dcb01d1333d13
+  zh: 2ca8621f02ef82d1
+/deepseek-ai-dsh-web-fetch-obscura/understand-the-implementation:
+  en: 9842c69ad3636bb3
+  zh: a2f5528eb01ec335
+/deepseek-ai-dsh-web-fetch-obscura/understand-the-implementation/design-philosophy:
+  en: 2d538bc67107e118
+  zh: 2c71a145a9974a5c
+/deepseek-ai-dsh-web-fetch-obscura/understand-the-implementation/source-map:
+  en: 4bca80fd65db8654
+  zh: 8605b9f4cff610ec
+/deepseek-ai-dsh-web-fetch-obscura/understand-the-implementation/exchange-flow:
+  en: 37f9970a18037ba2
+  zh: 2ee4ac07bc355758
+/deepseek-ai-dsh-web-fetch-obscura/further-exploration:
+  en: 9d4009e7d1cd0d81
+  zh: e1f7f816df4f1454
+/deepseek-ai-dsh-web-fetch-obscura/model-experience:
+  en: dd99161e1b2114d1
+  zh: 1012dd57909121bc
+/deepseek-ai-dsh-web-fetch-obscura/model-experience/kv-cache-effect:
+  en: 40294c1c31b74824
+  zh: 30a0be1828be6315
+/deepseek-ai-dsh-web-fetch-obscura/known-limitations-and-deferred-work:
+  en: 95547f3b30b9a5c4
+  zh: 8a4035bae594d4d7
+/deepseek-ai-dsh-web-fetch-obscura/known-limitations-and-deferred-work/dev-note:
+  en: 7f775cc79dbce94b
+  zh: dc946e3c86b91626
+/deepseek-ai-dsh-web-fetch-obscura/known-limitations-and-deferred-work/dev-note/future-fallback-chains-across-fetch-providers:
+  en: 81e6022e249bba06
+  zh: e54fabdaec20c2d4

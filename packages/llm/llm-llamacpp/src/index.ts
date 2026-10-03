@@ -14,6 +14,7 @@
  * @module @deepseek-ai/dsh-llm-llamacpp
  */
 
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -22,7 +23,6 @@ import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { LlmDiscoveredModel, LlmModelDiscoveryRequest, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
-import type {} from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { normalizeApiKey } from '@deepseek-ai/dsh-llm'
 import { LlamaCppAdapter, normalizeOrigin } from './adapter.ts'
@@ -47,7 +47,6 @@ export type { LifecycleOptions, ModelState } from './lifecycle.ts'
 export const name = 'llm-llamacpp'
 export const inject = ['llm']
 
-const NS = 'llm-llamacpp'
 const DEFAULT_API_KEY_ENV = 'LLAMACPP_API_KEY'
 const BASE_URL_ENV = 'LLAMACPP_BASE_URL'
 /** The single provider route this plugin owns. */
@@ -253,11 +252,13 @@ function resolveModels(models: readonly LlamaCppCatalogModel[] | undefined): Lla
 }
 
 export function apply(ctx: Context, config: Config): void {
-  let current: () => Config = () => config
+  // The settings namespace the directory entries and model discovery share:
+  // the plugin entry's instance id, so multiple mounts keep separate sections.
+  const settingsNs = ctx.fiber.entry?.options.id ?? name
   let lastRaw: Config | undefined
   let lastGood: Map<string, LlamaCppConnectionOptions> | undefined
   const routes = (): Map<string, LlamaCppConnectionOptions> => {
-    const raw = current()
+    const raw = config
     if (raw === lastRaw && lastGood !== undefined) return lastGood
     try {
       const next = resolveRoutes(raw, launchEnvironmentOf(ctx))
@@ -351,7 +352,7 @@ export function apply(ctx: Context, config: Config): void {
     const entries = [{
       provider: PROVIDER,
       displayName: resolved.get(PROVIDER)?.displayName ?? 'llama.cpp',
-      settingsNs: NS,
+      settingsNs,
       settingsPath: [] as string[],
       credentialOptional: true,
     }]
@@ -360,17 +361,12 @@ export function apply(ctx: Context, config: Config): void {
       entries.push({
         provider: route,
         displayName: connection.displayName,
-        settingsNs: NS,
+        settingsNs,
         settingsPath: ['providers', route],
         credentialOptional: true,
       })
     }
     if (deepEqualJson(entries, directoryFacts)) return
-    // Atomic replace, never register-again: installSettingsSection fires
-    // onChange once more right after the section registers, and a fresh
-    // registration would meet its own previous entries as DUPLICATE_DIRECTORY
-    // — failing the fiber after the routes mounted and withdrawing the
-    // section, the adapter, and the catalog rows from every surface.
     if (directory === undefined) {
       directory = ctx.llm.registerConfigurableProviders(entries)
     } else {
@@ -428,7 +424,7 @@ export function apply(ctx: Context, config: Config): void {
   // Endpoint interrogation for the configuration card: live listing with the
   // capacities and modalities the generic OpenAI-compatible reader leaves behind.
   ctx.llm.registerModelDiscovery(
-    NS,
+    settingsNs,
     async (request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<readonly LlmDiscoveredModel[]> => {
       // The draft the card shows wins; otherwise describe the route named, or
       // the default one when the request names none.
@@ -444,13 +440,4 @@ export function apply(ctx: Context, config: Config): void {
       return discoverRouterModels(normalizeOrigin(raw), key, signal)
     },
   )
-
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, NS, Config, config, {
-      setSource: (source) => {
-        current = source
-      },
-      onChange: syncRegistration,
-    })
-  })
 }

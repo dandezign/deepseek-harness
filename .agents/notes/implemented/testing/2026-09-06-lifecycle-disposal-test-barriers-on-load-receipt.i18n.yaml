@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-lifecycle-disposal-test-barriers-on-load-receipt.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-06-lifecycle-disposal-test-barriers-on-load-receipt.md
-2026-09-06-lifecycle-disposal-test-barriers-on-load-receipt.md: 89df91ff96c6554c7b2663abb93322c2bdebf455
-2026-09-06-lifecycle-disposal-test-barriers-on-load-receipt.zh.md: 9c677f4b8b5de7ad5e3778dcf5533ddba796e08e
+/agent-note-the-lifecycle-disposal-test-barriers-on-load-receipt-not-on-a-sleep:
+  en: fe4221f72d530846
+  zh: b90412bca7e11f93
+/agent-note-the-lifecycle-disposal-test-barriers-on-load-receipt-not-on-a-sleep/problem:
+  en: 10db45233726e7f1
+  zh: 874b6090b630728c
+/agent-note-the-lifecycle-disposal-test-barriers-on-load-receipt-not-on-a-sleep/decision:
+  en: 2a9be64a1d3293bb
+  zh: 5a811159dd2b7a14
+/agent-note-the-lifecycle-disposal-test-barriers-on-load-receipt-not-on-a-sleep/alternatives-considered:
+  en: 6d37210a097fe861
+  zh: 0d408d074f931370
+/agent-note-the-lifecycle-disposal-test-barriers-on-load-receipt-not-on-a-sleep/verification:
+  en: de9027245a6b9053
+  zh: 43a83712980e0318
+/agent-note-the-lifecycle-disposal-test-barriers-on-load-receipt-not-on-a-sleep/consequences:
+  en: 6e99f16ece1070a5
+  zh: 891eaf0654a67946

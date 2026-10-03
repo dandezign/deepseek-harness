@@ -466,11 +466,13 @@ describe('ui-model-selection dual entry', () => {
     }
   })
 
-  it('keeps the composer usable when current catalog models disappear', async () => {
+  it('blocks the composer only once the Host reports the route unservable', async () => {
     const b = await bench()
     b.mint('s1')
     const face = b.seat().inject!(sid('s1'))
 
+    // Before the first load nothing is known. `null` is not `false`: a slow
+    // or unreachable Host must never lock a working composer.
     expect(b.blockOf('s1')).toBeUndefined()
     face.load()
     await Promise.resolve()
@@ -482,7 +484,7 @@ describe('ui-model-selection dual entry', () => {
     b.remote.emit('settings/document-updated', ['llm-deepseek', 1])
     await Promise.resolve()
     await Promise.resolve()
-    expect(b.blockOf('s1')).toBeUndefined()
+    expect(b.blockOf('s1')?.reason).toBe(zh['blocked.composer'])
     expect(b.calls.models).toBe(2)
 
     // Recovering clears it without a reload of the surface.
@@ -492,6 +494,35 @@ describe('ui-model-selection dual entry', () => {
     await Promise.resolve()
     expect(b.blockOf('s1')).toBeUndefined()
     expect(b.calls.models).toBe(3)
+  })
+
+  it('never blocks on catalog membership alone', async () => {
+    const b = await bench()
+    b.mint('s1')
+    const face = b.seat().inject!(sid('s1'))
+    // A model the route serves but no longer advertises: the seat prompts for
+    // a selection, the composer stays usable. Blocking here would break a
+    // supported configuration (a narrowed `models` list over a live route).
+    b.setHostCurrent({ provider: 'deepseek-official', model: 'unlisted' })
+    face.load()
+    await Promise.resolve()
+    await Promise.resolve()
+    const snapshot = face.directory.getSnapshot()
+    expect(snapshot.groups.flatMap(group => group.models.map(model => model.id))).not.toContain('unlisted')
+    expect(b.blockOf('s1')).toBeUndefined()
+  })
+
+  it('clears its block when the session scope goes', async () => {
+    const b = await bench()
+    const scope = b.mint('s1')
+    b.setRoutable(false)
+    const face = b.seat().inject!(sid('s1'))
+    face.load()
+    b.remote.emit('llm/adapters-updated', [])
+    await vi.waitFor(() => { expect(b.blockOf('s1')).toBeDefined() })
+
+    await scope.fiber.dispose()
+    expect(b.blockOf('s1')).toBeUndefined()
   })
 
   it('retains an unavailable durable selection without replacing or rewriting it', async () => {

@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-06-web-search-tavily-firecrawl-providers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-06-web-search-tavily-firecrawl-providers.md
-2026-09-06-web-search-tavily-firecrawl-providers.md: 90a4a791e2cab15f8ed99aff58d95155d63e9cd1
-2026-09-06-web-search-tavily-firecrawl-providers.zh.md: c0a62491f5ebbf6d105db86a2dc381163c32d420
+/agent-note-tavily-and-firecrawl-search-providers-join-the-web-seam:
+  en: 92a9475acc1f843b
+  zh: 075dc276b0e2ffb9
+/agent-note-tavily-and-firecrawl-search-providers-join-the-web-seam/problem:
+  en: f1579119c0fcaa67
+  zh: a2bd261c844665ee
+/agent-note-tavily-and-firecrawl-search-providers-join-the-web-seam/decision:
+  en: cd1396f5f2699f11
+  zh: cb301add09f97531
+/agent-note-tavily-and-firecrawl-search-providers-join-the-web-seam/alternatives-considered:
+  en: 7462b0bb46c1cdd6
+  zh: f804866496a5633c
+/agent-note-tavily-and-firecrawl-search-providers-join-the-web-seam/verification:
+  en: bb0bef5e89993dfa
+  zh: f8ffa2757995d75a
+/agent-note-tavily-and-firecrawl-search-providers-join-the-web-seam/consequences:
+  en: 8bb552a4b80cff01
+  zh: ef68799a9154ba84

@@ -612,7 +612,8 @@ describe('endpoint interrogation', () => {
 
     fireEvent.click(screen.getByText(en.fetchModels))
     await screen.findByText(en.fetchTitle)
-    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'fresh' }).checked).toBe(true)
+    console.log('BODY-SNIPPET:', document.body.innerHTML.slice(0, 1500))
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: /^fresh/ }).checked).toBe(true)
     expect(screen.queryByRole('checkbox', { name: 'Fresh' })).toBeNull()
     // The already-configured row starts unchecked; the new one starts checked.
     const boxes = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
@@ -855,6 +856,14 @@ const LlamaCppConfig = Schema.object({
   })),
 })
 
+/** The manual interrogation payload (the catalog auto-probe lands earlier in the log). */
+function firstProbe(discover: ReturnType<typeof vi.fn>): unknown {
+  const calls = discover.mock.calls as unknown as [string, Record<string, unknown>][]
+  const call = calls.at(-1)
+  if (call === undefined) throw new Error('no interrogation was recorded')
+  return { settingsNs: call[0], ...call[1] }
+}
+
 function llamaCppNamespace(
   section: JsonValue = {},
   user: JsonValue = section,
@@ -865,7 +874,7 @@ function llamaCppNamespace(
     value: section,
     base: {},
     user,
-    applies: 'live',
+    autoGenerate: true, applies: 'live',
     secrets: [],
     revision: 5,
   }

@@ -5670,27 +5670,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmConfigurableProvider',
-    declaration: 'export interface LlmConfigurableProvider {
-    provider: string;
-    displayName: string;
-    settingsNs: string;
-    settingsPath: readonly string[];
-    declared?: boolean;
-    credentialOptional?: boolean;
-    error?: string;
-}',
+    declaration: 'export interface LlmConfigurableProvider {\n    provider: string;\n    displayName: string;\n    settingsNs: string;\n    settingsPath: readonly string[];\n    declared?: boolean;\n    credentialOptional?: boolean;\n    error?: string;\n}',
   },
   {
     name: 'LlmDiscoveredModel',
-    declaration: 'export interface LlmDiscoveredModel {
-    id: string;
-    name?: string;
-    description?: string;
-    contextWindow?: number;
-    maxTokens?: number;
-    inputModalities?: readonly ModelModality[];
-    residency?: 'loaded' | 'loading' | 'unloaded' | 'unloading';
-}',
+    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    description?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    inputModalities?: readonly ModelModality[];\n    residency?: \'loaded\' | \'loading\' | \'unloaded\' | \'unloading\';\n}',
   },
   {
     name: 'LlmFailure',

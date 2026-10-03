@@ -19,7 +19,7 @@ import type {
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import { DONE, httpErrorCode, parseSse, translate } from '@deepseek-ai/dsh-llm-deepseek/wire'
-import type { WireError } from '@deepseek-ai/dsh-llm-deepseek'
+import type { WireError } from '@deepseek-ai/dsh-llm-deepseek/wire'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'

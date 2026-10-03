@@ -38,7 +38,8 @@ import {
   IconDataOutlineRegular, IconWarningOutlineRegular, Input, rankByName, StateDot, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ModelSelectInjected } from './slots.ts'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ModelSelectInjected, ModelLoadProgressState } from './slots.ts'
 import css from './ModelSelect.module.css'
 import { orderModelProviders } from './provider-order.ts'
 
@@ -62,7 +63,7 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @returns the trigger and, while open, the two-level menu.
  */
 export function ModelSelect(
-  { locked, available, directory, progress, load, select, t }:
+  { locked, available, directory, progress = createSnapshotStore<ModelLoadProgressState>(null), load, select, t }:
   ModelSelectInjected & { locked: boolean } & PropsLocale<'model'>,
 ) {
   const state = useSyncExternalStore(
@@ -666,8 +667,8 @@ export function ModelSelect(
           {loadProgress.phase === 'loading'
             ? <span className={css.loadSpinner} aria-hidden />
             : loadProgress.phase === 'ready'
-              ? <IconCheckOutline16 />
-              : <IconWarningOutline16 />}
+              ? <IconCheckOutlineRegular size={16} />
+              : <IconWarningOutlineRegular size={16} />}
           <span className={css.loadText}>
             {loadProgress.phase === 'loading'
               ? t('progress.loading', { model: loadProgress.model })

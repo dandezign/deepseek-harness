@@ -31,9 +31,10 @@ export interface ModelSelectInjected {
   directory: SnapshotStore<ModelDirectoryState>
   /**
    * Host-global live model-load progress (one load at a time); the seat turns
-   * it into the transient load/switch banner.
+   * it into the transient load/switch banner. Optional so a surface without
+   * load lifecycle wiring renders without a banner.
    */
-  progress: SnapshotStore<ModelLoadProgressState>
+  progress?: SnapshotStore<ModelLoadProgressState>
   /** Ensure the shared advisory catalog is loaded (errors land on the store). */
   load: () => void
   /**

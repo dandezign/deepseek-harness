@@ -8,7 +8,7 @@
  * @module @deepseek-ai/dsh-llm-deepseek/wire
  */
 
-export { httpErrorCode } from './adapter.ts'
-export { DONE, parseSse } from './sse.ts'
-export { translate } from './translate.ts'
-export { serializeMessages } from './serialize.ts'
+export { httpErrorCode } from './wire/http-error-code.ts'
+export { DONE, parseSse } from './wire/sse.ts'
+export { translate } from './wire/translate.ts'
+export { serializeMessages } from './wire/serialize.ts'

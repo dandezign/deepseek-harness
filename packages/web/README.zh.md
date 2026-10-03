@@ -1,5 +1,5 @@
 ---
-description: "web 访问能力家族的包映射：搜索/抓取服务、其提供方后端，以及消费它们的面向模型工具。"
+description: "web 访问能力家族的包映射：搜索与抓取服务、其提供方后端，以及消费它们的面向模型工具。"
 kind: "package-group"
 ---
 
@@ -26,7 +26,7 @@ kind: "package-group"
 
 | 包 | 职责 | ctx 键 |
 |---|---|---|
-| [`web/`](web/README.zh.md) | 搜索/抓取服务：通过可互换的后端搜索与抓取 URL，统一选择与错误策略 | `ctx.web` |
+| [`web/`](web/README.zh.md) | 搜索与抓取服务：通过可互换的后端搜索与抓取 URL，统一选择与错误策略 | `ctx.web` |
 | [`web-search-exa/`](web-search-exa/README.zh.md) | 通过 Exa 搜索 web | 注册到 `ctx.web` |
 | [`web-search-perplexity/`](web-search-perplexity/README.zh.md) | 通过 Perplexity 搜索 web | 注册到 `ctx.web` |
 | [`web-search-deepseek/`](web-search-deepseek/README.zh.md) | 通过 DeepSeek 原生搜索搜索 web | 注册到 `ctx.web` |
@@ -45,7 +45,7 @@ kind: "package-group"
 
 先从子系统参考文档了解共享词汇，再看单一提供方选择服务背后的设计决策。
 
-- [web 子系统](../../docs/subsystems/web.zh.md)——搜索/抓取请求与结果、提供方可用性、`WebError` 与公开地址强制规则。
+- [web 子系统](../../docs/subsystems/web.zh.md)——搜索与抓取的请求和结果、提供方可用性、`WebError` 与公开地址强制规则。
 - [web 能力 seam 决策](../../.agents/notes/implemented/architecture/2026-06-24-web-capability-seam.zh.md)——搜索与抓取为何共用一项提供方选择服务。
 
 <a id="dev-note"></a>

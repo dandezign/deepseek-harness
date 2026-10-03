@@ -17,8 +17,16 @@ export interface PropsReply {
   models_autoload?: unknown
   /** Concurrent resident model instances the router allows. */
   max_instances?: unknown
-  /** Build identifier, e.g. `b10443-27df9199d`. */
+  /** Build identifier, e.g. `b10443-27df9199d` — Strata names itself here. */
   build_info?: unknown
+  /** The single model a Strata server serves, resident or not. */
+  model_alias?: unknown
+  /** Default context capacity (Strata: `default_generation_settings.n_ctx`). */
+  default_generation_settings?: { n_ctx?: unknown }
+  /** Whether the served model is currently non-resident (Strata). */
+  is_sleeping?: unknown
+  /** Capability flags (Strata: `{ vision: boolean }`). */
+  modalities?: { vision?: unknown }
 }
 
 /** Progress attached to a `loading` status-change event. */
@@ -45,6 +53,10 @@ export interface RouterModelEntry {
     value?: unknown
     /** Launch argv, when the entry came from a models directory. */
     args?: unknown
+  }
+  /** Capacity block (Strata answers it even while the model is unloaded). */
+  meta?: {
+    n_ctx?: unknown
   }
   /** Architecture block carrying input/output modalities. */
   architecture?: {
@@ -85,8 +97,9 @@ export interface ModelEvent {
 }
 
 /** Body of `POST /models/load` and `POST /models/unload`. */
+/** Body of `POST /models/load` and `POST /models/unload` (Strata sends an empty body). */
 export interface ModelActionBody {
-  model: string
+  model?: string
 }
 
 /** Reply of `POST /models/load` and `POST /models/unload`. */

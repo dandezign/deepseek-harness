@@ -44,8 +44,8 @@ export interface MockRouterOptions {
   models: MockModel[]
   /** Latency of each load transition (default 25ms). */
   loadDelayMs?: number
-  /** `/props` role: `router` (default) or `server` (lifecycle inapplicable). */
-  role?: 'router' | 'server'
+  /** `/props` role: `router` (default), `server` (lifecycle inapplicable), or `strata` (Strata server shape). */
+  role?: 'router' | 'server' | 'strata'
   /** Concurrent resident models before eviction (default 1, llama.cpp's own default). */
   maxInstances?: number
   /** When set, chat requests must carry `authorization: Bearer <this>`. */
@@ -147,6 +147,8 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
     void handle(request, response)
   })
 
+  const strata = options.role === 'strata'
+
   async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const url = request.url ?? '/'
     const authorized = options.apiKey === undefined || request.headers.authorization === `Bearer ${options.apiKey}`
@@ -159,8 +161,21 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
         response.end(JSON.stringify({ error: { message: 'invalid api key', type: 'invalid_request_error', code: 401 } }))
         return
       }
-      const role = options.role ?? 'router'
       response.writeHead(200, { 'content-type': 'application/json' })
+      if (strata) {
+        const anyLoaded = [...status.values()].some(value => value === 'loaded')
+        response.end(JSON.stringify({
+          default_generation_settings: { n_ctx: options.loadedContextWindow ?? 32768, params: {} },
+          total_slots: 1,
+          model_alias: options.models[0]?.id ?? 'model',
+          modalities: { vision: false },
+          models_autoload: true,
+          is_sleeping: !anyLoaded,
+          build_info: 'Strata 0.1.33-test',
+        }))
+        return
+      }
+      const role = options.role ?? 'router'
       response.end(JSON.stringify(role === 'router'
         ? { role: 'router', models_autoload: false, max_instances: options.maxInstances ?? 1 }
         : { role: 'server', model_path: 'model.gguf' }))
@@ -174,6 +189,24 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
         return
       }
       response.writeHead(200, { 'content-type': 'application/json' })
+      if (strata) {
+        // Strata lists the model only while it is resident: a non-resident
+        // server answers an empty listing (its /props says is_sleeping).
+        const anyLoaded = [...status.values()].some(value => value === 'loaded')
+        response.end(JSON.stringify({
+          object: 'list',
+          data: anyLoaded
+            ? options.models.map(model => ({
+              id: model.id,
+              object: 'model',
+              status: { value: status.get(model.id) ?? 'unloaded' },
+              meta: { n_ctx: options.loadedContextWindow ?? 32768 },
+              architecture: { input_modalities: model.inputModalities ?? ['text'], output_modalities: ['text'] },
+            }))
+            : [],
+        }))
+        return
+      }
       response.end(JSON.stringify({
         object: 'list',
         data: options.models.map(model => ({
@@ -193,7 +226,7 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
         response.end(JSON.stringify({ error: { message: 'invalid api key', type: 'invalid_request_error', code: 401 } }))
         return
       }
-      if ((options.sse ?? 'stream') === 'absent') {
+      if ((options.sse ?? 'stream') === 'absent' || strata) {
         response.writeHead(404, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ error: { message: 'File Not Found', type: 'not_found_error', code: 404 } }))
         return
@@ -205,6 +238,32 @@ export async function mockRouter(options: MockRouterOptions): Promise<MockRouter
       }
       listeners.add(response)
       request.on('close', () => { listeners.delete(response) })
+      return
+    }
+
+    if (strata && (url === '/load' || url === '/unload') && request.method === 'POST') {
+      if (!authorized) {
+        response.writeHead(401, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: { message: 'invalid api key', type: 'invalid_request_error', code: 401 } }))
+        return
+      }
+      await readBody(request)
+      if (url === '/load') {
+        for (const model of options.models) {
+          loadCount.set(model.id, (loadCount.get(model.id) ?? 0) + 1)
+          for (const notify of [...loadWaiters]) notify(model.id)
+          transition(model.id, 'loaded')
+        }
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end('{"status":"loaded"}')
+      } else {
+        for (const model of options.models) {
+          unloadCount.set(model.id, (unloadCount.get(model.id) ?? 0) + 1)
+          setStatus(model.id, 'unloaded')
+        }
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end('{"status":"unloaded"}')
+      }
       return
     }
 

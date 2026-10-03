@@ -11,7 +11,7 @@
 
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-llm'
-import type { ModelEvent, ModelsReply, RouterModelEntry } from './types.ts'
+import type { ModelEvent, ModelsReply, PropsReply, RouterModelEntry } from './types.ts'
 
 /**
  * Discovery output. Both extras llama.cpp discloses — declared modalities and
@@ -63,12 +63,13 @@ export function modalitiesOf(entry: RouterModelEntry): readonly ('text' | 'image
   return modalities.length > 0 ? modalities : ['text']
 }
 
-/** Derive the context window claim: argv first (configured), info.meta second (authoritative once loaded). */
+/** Derive the context window claim: argv first (configured), the entry's `meta` second (Strata answers it while
+ *  unloaded), the loaded model's authoritative `status.info.meta` last. */
 function contextWindowOf(entry: RouterModelEntry, meta?: { n_ctx?: unknown }): number | undefined {
   const args = entry.status?.args
   const fromArgs = Array.isArray(args) ? contextWindowFromArgs(args) : undefined
   if (fromArgs !== undefined) return fromArgs
-  const nCtx = Number(meta?.n_ctx)
+  const nCtx = Number(meta?.n_ctx ?? entry.meta?.n_ctx)
   return Number.isInteger(nCtx) && nCtx > 0 ? nCtx : undefined
 }
 
@@ -96,7 +97,7 @@ export function parseModelsReply(reply: unknown): DiscoveredRouterModel[] {
     if (typeof entry.id !== 'string' || entry.id.length === 0) continue
     const residency = residencyOf(entry.status?.value)
     const modalities = modalitiesOf(entry)
-    const contextWindow = contextWindowOf(entry)
+    const contextWindow = contextWindowOf(entry, entry.meta)
     models.push({
       id: entry.id,
       inputModalities: modalities,
@@ -139,11 +140,73 @@ export async function discoverRouterModels(
       { status: response.status },
     )
   }
+  let models: DiscoveredRouterModel[]
   try {
-    return parseModelsReply(await response.json())
+    models = parseModelsReply(await response.json())
   } catch (error) {
     if (error instanceof LlmError) throw error
     throw new LlmError(`llama.cpp model discovery from ${origin} returned a non-JSON listing`, 'MALFORMED_RESPONSE', { cause: error })
+  }
+  if (models.length > 0) return models
+  // A Strata server that is not resident answers an EMPTY listing — yet its
+  // /props still names the one model it serves, so a settings card pointed at
+  // a sleeping server still has something to adopt. Ask /props; anything that
+  // does not answer with a Strata-shaped props (model_alias present) keeps
+  // the empty listing it earned.
+  return discoverStrataFallback(origin, apiKey, signal)
+}
+
+/**
+ * Synthesize the single-model candidate from a Strata server's `/props`.
+ * @param origin - server origin (scheme + host[:port]).
+ * @param apiKey - bearer token, or `undefined` for an anonymous probe.
+ * @param signal - caller cancellation.
+ * @returns the one candidate, or an empty list when `/props` is not Strata-shaped.
+ */
+export async function discoverStrataFallback(
+  origin: string,
+  apiKey?: string,
+  signal?: AbortSignal,
+): Promise<DiscoveredRouterModel[]> {
+  let response: Response
+  try {
+    response = await fetch(`${origin}/props`, {
+      headers: apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` },
+      ...signal === undefined ? {} : { signal },
+    })
+  } catch (error: unknown) {
+    if (signal?.aborted) throw error
+    return []
+  }
+  if (!response.ok) return []
+  let props: PropsReply
+  try {
+    props = await response.json() as PropsReply
+  } catch {
+    return []
+  }
+  const model = strataFallbackModel(props)
+  return model === undefined ? [] : [model]
+}
+
+/**
+ * Read the one-model candidate out of a Strata `/props` reply.
+ * @param props - the parsed props body.
+ * @returns the candidate, or `undefined` when the props names no model.
+ */
+export function strataFallbackModel(props: PropsReply): DiscoveredRouterModel | undefined {
+  const id = typeof props.model_alias === 'string' && props.model_alias.length > 0
+    ? props.model_alias
+    : undefined
+  if (id === undefined) return undefined
+  const nCtx = Number(props.default_generation_settings?.n_ctx)
+  const contextWindow = Number.isInteger(nCtx) && nCtx > 0 ? nCtx : undefined
+  const vision = props.modalities?.vision === true
+  return {
+    id,
+    inputModalities: vision ? ['text', 'image'] : ['text'],
+    residency: props.is_sleeping === true ? 'unloaded' : 'loaded',
+    ...contextWindow !== undefined ? { contextWindow } : {},
   }
 }
 

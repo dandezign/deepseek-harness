@@ -55,6 +55,8 @@ kind: "package-reference"
 
 基于 llama.cpp 构建 `b10443-27df9199d` 的实测行为；适配器在每个配置生成内探测一次 `GET /props`（能解析出密钥时携带 bearer 令牌——加 `--api-key` 启动的服务器对匿名探测回答 401），凡非 `role: "router"` 即退化为无操作生命周期，因此普通单模型服务器行为与从前完全一致。
 
+**[Strata](https://github.com/Niko1221/Strata) 服务器同样纳入管理。**它的 `/props` 不带 `role`，适配器以 `models_autoload` 标记识别（`build_info: "Strata …"` 佐证），转而驱动整台服务器的 `POST /load` / `POST /unload`，而非路由器的按模型调用；`/load` 回答 `409` 表示已有请求在运行，模型必然已常驻，等待随之继续。常驻状态读自 `/v1/models` 列表——非常驻的 Strata 以空数组作答，因此列表中缺失的模型读作 `unloaded` 而非未知；发现则回退到 `/props`，其 `model_alias` 即便在休眠时也给出所服务模型的上下文窗口与视觉能力。`/models/sse` 流不被使用：轮询足以覆盖状态转移。
+
 - **每次请求之前**（`autoLoad`，默认开启）：从 `/v1/models` 读取模型实时状态；`loaded` 立即放行，其余状态 POST `/models/load` 并轮询直至就绪，以 `loadTimeoutMs` 为上界。对同一模型的并发请求共享单个进行中的等待；等待途中回落到 `unloaded` 的模型恰好获得一次重新加载。
 - **not-loaded 竞态**：其他客户端可能在预检与 chat POST 之间卸载模型，路由器以 `400 {"message":"model is not loaded"}` 作答——由 `dsh-llm` 的共享分类器归入 `MODEL_NOT_LOADED`。适配器恢复一次——重新确保、重试请求——然后才浮现错误。
 - **切换**：在 `max_instances: 1` 下加载模型 B 会由路由器自行驱逐 A，因此在选择器里切换模型即可工作；切换后的第一个请求承担加载耗时。`autoUnload: on-switch` 额外在没有进行中请求持有先前常驻模型时（按模型引用计数）将其卸载——对路由器不做驱逐的多实例服务器是清理手段。

@@ -378,3 +378,101 @@ describe('live discovery', () => {
     await expect(discoverRouterModels(server.url, 'wrong-key')).rejects.toMatchObject({ code: 'AUTH' })
   })
 })
+
+/** A trimmed capture of Strata's /v1/models reply while the model is resident. */
+const STRATA_LOADED = {
+  object: 'list',
+  data: [
+    {
+      id: 'qwen3.8-flash-next',
+      object: 'model',
+      status: { value: 'loaded' },
+      meta: { n_ctx: 131072 },
+      architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
+    },
+  ],
+}
+
+describe('Strata discovery', () => {
+  it('derives the context window from the entry meta a Strata listing carries', () => {
+    const models = parseModelsReply(STRATA_LOADED)
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      id: 'qwen3.8-flash-next',
+      contextWindow: 131072,
+      inputModalities: ['text', 'image'],
+      residency: 'loaded',
+    })
+  })
+
+  it('reads an empty Strata listing (model not resident) as no candidates, not an error', () => {
+    expect(parseModelsReply({ object: 'list', data: [] })).toEqual([])
+  })
+})
+
+describe('ModelLifecycle against a Strata server', () => {
+  it('loads through the whole-server POST /load and reports the transition', async () => {
+    const server = await mockRouter({ models: [{ id: 'tiny' }], role: 'strata', loadDelayMs: 15 })
+    const progress: ModelLoadTransition[] = []
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+      onProgress: (transition) => { progress.push(transition) },
+    })
+    await lifecycle.ensureLoaded('tiny')
+    // The Strata surface (/load) was driven, not the router's /models/load.
+    expect(server.loadCount.get('tiny')).toBe(1)
+    expect(progress.map(t => t.phase)).toEqual(['loading', 'ready'])
+    lifecycle.dispose()
+  })
+
+  it('reads a hidden non-resident model as unloaded and still drives the load', async () => {
+    // A Strata server without an idle unload answers an EMPTY listing while
+    // the model sleeps: the entry the lifecycle waits for does not exist yet.
+    const server = await mockRouter({ models: [{ id: 'tiny' }], role: 'strata', loadDelayMs: 1 })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+    })
+    await expect(lifecycle.status('tiny')).resolves.toBe('unloaded')
+    await lifecycle.ensureLoaded('tiny')
+    expect(server.loadCount.get('tiny')).toBe(1)
+    lifecycle.dispose()
+  })
+
+  it('unloads through the whole-server POST /unload', async () => {
+    const server = await mockRouter({ models: [{ id: 'tiny' }], role: 'strata' })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+    })
+    await lifecycle.unload('tiny')
+    expect(server.unloadCount.get('tiny')).toBe(1)
+    lifecycle.dispose()
+  })
+
+  it('leaves the /models/sse watcher alone (Strata has no stream)', async () => {
+    const server = await mockRouter({ models: [{ id: 'tiny' }], role: 'strata' })
+    const lifecycle = new ModelLifecycle({
+      origin: server.url,
+      authorize: () => Promise.resolve(undefined),
+      loadTimeoutMs: 2_000,
+      pollIntervalMs: 10,
+      autoUnload: 'never',
+      watchEvents: true,
+    })
+    await lifecycle.ensureLoaded('tiny')
+    // The stream 404s on a Strata server; no error escaped, and the load
+    // completed through polling alone (the assertions above already ran).
+    lifecycle.dispose()
+  })
+})

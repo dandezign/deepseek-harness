@@ -27,6 +27,16 @@ import type { ModelActionBody, ModelActionReply, ModelsReply, PropsReply, Router
 /** Live status values a router reports for one model entry. */
 export type ModelState = 'unloaded' | 'loading' | 'loaded' | 'unloading' | 'unknown'
 
+/** Which control surface the endpoint speaks, decided by the `/props` probe. */
+export type ServerKind =
+  /** llama.cpp multi-model router: `role: "router"`, `/models/load`, `/models/sse`. */
+  | 'router'
+  /** Strata (`build_info: "Strata …"` or the `models_autoload`/`role`-less props shape):
+   *  one whole-server model, `/load` and `/unload`, no event stream. */
+  | 'strata'
+  /** A plain single-model server: lifecycle management does not apply. */
+  | 'plain'
+
 /** Construction facts for one route's lifecycle manager. */
 export interface LifecycleOptions {
   /** Server origin, normalized (scheme + host[:port], no `/v1` suffix). */
@@ -89,7 +99,7 @@ function noop(): void {}
 export class ModelLifecycle {
   private readonly options: LifecycleOptions
   /** `undefined` until probed; stays cached for the manager's lifetime. */
-  private router: boolean | undefined
+  private kind: ServerKind | undefined
   /** Deduplicates concurrent ensure-loaded waits per model (the joined value is the wait's transition report). */
   private readonly inflight = new Map<string, Promise<boolean>>()
   /** In-flight chat requests per model; guards on-switch unloads. */
@@ -159,14 +169,16 @@ export class ModelLifecycle {
   }
 
   /**
-   * Whether the endpoint is a multi-model router. Probed once through
-   * `GET /props`; a missing/unknown `role` or a 404 means a plain
+   * Which control surface this endpoint speaks, probed once through `GET /props`:
+   * `role: "router"` names a llama.cpp multi-model router; Strata answers the
+   * `role`-less single-model props shape with `models_autoload` and a
+   * `build_info` that names it; anything else (a 404 included) is a plain
    * single-model server, where lifecycle management does not apply.
    * @param signal - cancellation for the probe request.
-   * @returns whether this endpoint is a multi-model router.
+   * @returns the detected server kind.
    */
-  async isRouter(signal?: AbortSignal): Promise<boolean> {
-    if (this.router !== undefined) return this.router
+  private async detectKind(signal?: AbortSignal): Promise<ServerKind> {
+    if (this.kind !== undefined) return this.kind
     const scoped = this.scope(signal)
     let response: Response
     try {
@@ -182,25 +194,41 @@ export class ModelLifecycle {
       if (scoped.aborted) throw error
       // A transport failure cannot tell an older build without the control
       // surface apart from a server that is not up yet, so this call answers
-      // "not a router" WITHOUT caching it: caching would disable lifecycle
+      // "plain" WITHOUT caching it: caching would disable lifecycle
       // management for the rest of this configuration generation the moment
       // one probe met a server that had not finished starting.
-      return false
+      return 'plain'
     }
     if (!response.ok) {
-      this.router = false
-      return this.router
+      this.kind = 'plain'
+      return this.kind
     }
     try {
       const props = await response.json() as PropsReply
-      this.router = props.role === 'router'
+      if (props.role === 'router') this.kind = 'router'
+      // Strata answers the role-less single-model shape but always carries
+      // `models_autoload` (a plain llama.cpp server sets neither) — and its
+      // `build_info` names it when the engine reported a version.
+      else if (!('role' in props) && props.models_autoload !== undefined) this.kind = 'strata'
+      else this.kind = 'plain'
     } catch {
-      this.router = false
+      this.kind = 'plain'
     }
-    // Only a confirmed router serves the stream; a plain server would just
-    // 404 it, and this manager will never wait on a load there anyway.
-    if (this.router) this.watcher?.start()
-    return this.router
+    // Only a confirmed router serves the stream; Strata has no `/models/sse`, and
+    // this manager will never wait on a load there anyway (polling covers it).
+    if (this.kind === 'router') this.watcher?.start()
+    return this.kind
+  }
+
+  /**
+   * Whether the endpoint runs a lifecycle this manager can drive — a
+   * multi-model router or a Strata server (whose single model still loads on
+   * demand). A plain server answers "no": every lifecycle method no-ops.
+   * @param signal - cancellation for the probe request.
+   * @returns whether lifecycle management applies.
+   */
+  async isRouter(signal?: AbortSignal): Promise<boolean> {
+    return (await this.detectKind(signal)) !== 'plain'
   }
 
   /**
@@ -248,7 +276,15 @@ export class ModelLifecycle {
     const live = this.watcher?.statusOf(model)
     if (live !== undefined) return live
     const entries = await this.entries(signal)
-    return statusOfEntry(entries.find(entry => entry.id === model))
+    const found = entries.find(entry => entry.id === model)
+    if (found !== undefined) return statusOfEntry(found)
+    // Strata lists a non-resident model only when an idle unload is armed;
+    // otherwise its listing comes back empty while the server sits there
+    // ready to load on use. A model the (successful) listing does not name is
+    // therefore `unloaded`, not `unknown` — which is exactly what a pre-flight
+    // ensure-loaded needs to issue the load.
+    if (await this.detectKind(signal) === 'strata') return 'unloaded'
+    return 'unknown'
   }
 
   /**
@@ -334,7 +370,7 @@ export class ModelLifecycle {
     const state = await this.status(model, scoped)
     if (state === 'loaded') return false
     this.report({ model, phase: 'loading' })
-    if (state !== 'loading') await this.postModelAction('/models/load', model, scoped)
+    if (state !== 'loading') await this.postModelAction('load', model, scoped)
     const deadline = Date.now() + this.options.loadTimeoutMs
     // Poll until loaded; a transition back to `unloaded` (crash, eviction)
     // re-issues the load once rather than waiting out the clock on a state
@@ -364,14 +400,23 @@ export class ModelLifecycle {
       if (next === 'unloaded' && !reloaded) {
         reloaded = true
         this.log(`model "${model}" returned to unloaded while waiting; re-issuing load`)
-        await this.postModelAction('/models/load', model, scoped)
+        await this.postModelAction('load', model, scoped)
       }
     }
   }
 
-  /** POST one `/models/load` or `/models/unload` action. */
-  private async postModelAction(path: '/models/load' | '/models/unload', model: string, signal?: AbortSignal): Promise<void> {
-    const body: ModelActionBody = { model }
+  /**
+   * POST one load or unload action on the endpoint's own control surface: a
+   * router names the model (`/models/load {model}`), Strata drives its single
+   * resident sequence whole-server (`/load`, `/unload`, no body).
+   * @param action - which transition to drive.
+   * @param model - model id (router calls only; ignored by Strata).
+   */
+  private async postModelAction(action: 'load' | 'unload', model: string, signal?: AbortSignal): Promise<void> {
+    const kind = await this.detectKind(signal)
+    const path = kind === 'strata' ? `/${action}` : `/models/${action}`
+    const body: ModelActionBody = kind === 'strata' ? {} : { model }
+    const named = kind === 'strata' ? `"${model}" (server)` : `"${model}"`
     const scoped = this.scope(signal)
     let response: Response
     try {
@@ -386,6 +431,10 @@ export class ModelLifecycle {
       throw new LlmError(`llama.cpp ${path} for "${model}" failed`, 'TRANSPORT', { cause: error })
     }
     if (!response.ok) {
+      // Strata refuses an unload with 409 while a request is running — for a
+      // load that same 409 says a request is in flight, so the model is de
+      // facto resident and the wait that follows finds it loaded.
+      if (kind === 'strata' && action === 'load' && response.status === 409) return
       // A 404 names an older build without the control surface; the chat
       // request itself will surface the actionable error.
       let detail = ''
@@ -400,14 +449,14 @@ export class ModelLifecycle {
     }
     try {
       const reply = await response.json() as ModelActionReply
-      if (reply.success !== true) {
+      if (kind !== 'strata' && reply.success !== true) {
         throw new LlmError(`llama.cpp ${path} for "${model}" returned success !== true`, 'SERVER')
       }
     } catch (error) {
       if (error instanceof LlmError) throw error
       // A non-JSON action reply is tolerated: the status poll is authoritative.
     }
-    this.log(`${path === '/models/load' ? 'loading' : 'unloading'} "${model}"`)
+    this.log(`${action === 'load' ? 'loading' : 'unloading'} ${named}`)
   }
 
   /**
@@ -421,7 +470,7 @@ export class ModelLifecycle {
     if (this.disposed) return
     if (!(await this.isRouter(signal))) return
     try {
-      await this.postModelAction('/models/unload', model, signal)
+      await this.postModelAction('unload', model, signal)
       this.knownLoaded.delete(model)
     } catch (error: unknown) {
       if (this.scope(signal).aborted) return

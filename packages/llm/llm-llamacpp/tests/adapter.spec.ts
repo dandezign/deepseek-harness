@@ -4,6 +4,7 @@ import LlmRuntime, { BlockAssembler, createUserMessage, resolveRetryPolicy, Reas
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import * as LlamaCpp from '../src/index.ts'
+import { discoverRouterModels } from '../src/discovery.ts'
 import { LlamaCppAdapter, normalizeOrigin, resolveAdapterOptions, resolveRoutes } from '../src/index.ts'
 import type { LlamaCppConnectionOptions } from '../src/index.ts'
 import { closeMockRouters, mockRouter } from './mock-router.ts'
@@ -218,6 +219,65 @@ describe('LlamaCppAdapter against a mock router', () => {
     release()
     squatter.dispose()
     await ctx.fiber.dispose()
+  })
+})
+
+describe('LlamaCppAdapter against a Strata server', () => {
+  it('auto-loads through POST /load, then streams the chat completion', async () => {
+    const server = await mockRouter({ models: [{ id: 'qwen3.8-flash-next' }], role: 'strata', loadDelayMs: 15 })
+    const chunks = await collect(adapterOf(connectionOf(server.url, { displayName: 'Strata' })).stream({
+      provider: 'llamacpp',
+      model: 'qwen3.8-flash-next',
+      messages: userMessage('hi'),
+    }))
+    const { text, finish } = assembled(chunks)
+    expect(text).toBe('hello')
+    expect(finish).toEqual({ kind: 'stop' })
+    // The whole-server load endpoint was driven, and it preceded the chat.
+    expect(server.loadCount.get('qwen3.8-flash-next')).toBe(1)
+    expect(server.chatRequests).toHaveLength(1)
+    expect(server.chatRequests[0]).toMatchObject({ model: 'qwen3.8-flash-next', stream: true })
+  })
+
+  it('discovers the model through /props while the Strata server is not resident', async () => {
+    // A sleeping Strata answers an empty listing; its /props still names the
+    // served model, so the settings card has something to adopt.
+    const server = await mockRouter({ models: [{ id: 'qwen3.8-flash-next' }], role: 'strata' })
+    const models = await discoverRouterModels(server.url)
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      id: 'qwen3.8-flash-next',
+      contextWindow: 32768,
+      inputModalities: ['text'],
+      residency: 'unloaded',
+    })
+  })
+
+  it('carries the bearer key on discovery and refuses a wrong one', async () => {
+    const server = await mockRouter({
+      models: [{ id: 'qwen3.8-flash-next', inputModalities: ['text', 'image'] }],
+      role: 'strata',
+      apiKey: 'sekrit',
+    })
+    const models = await discoverRouterModels(server.url, 'sekrit')
+    expect(models.map(model => model.id)).toEqual(['qwen3.8-flash-next'])
+    await expect(discoverRouterModels(server.url, 'wrong-key')).rejects.toMatchObject({ code: 'AUTH' })
+  })
+
+  it('reads a resident Strata model from the listing with its disclosed context window', async () => {
+    const server = await mockRouter({
+      models: [{ id: 'qwen3.8-flash-next', inputModalities: ['text', 'image'], start: 'loaded' }],
+      role: 'strata',
+      loadedContextWindow: 131072,
+    })
+    const models = await discoverRouterModels(server.url)
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      id: 'qwen3.8-flash-next',
+      contextWindow: 131072,
+      inputModalities: ['text', 'image'],
+      residency: 'loaded',
+    })
   })
 })
 

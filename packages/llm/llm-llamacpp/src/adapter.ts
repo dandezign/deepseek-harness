@@ -143,7 +143,7 @@ async function* failOnStreamErrorPayload(payloads: AsyncGenerator<string>): Asyn
         // terminal error shape is intercepted here.
       }
       const error = parsed?.error
-      if (error !== undefined && error !== null) {
+      if (error !== undefined) {
         const detail = [error.code, error.type, error.message].filter(Boolean).join(' ')
         const message = typeof error.message === 'string' && error.message.length > 0
           ? error.message

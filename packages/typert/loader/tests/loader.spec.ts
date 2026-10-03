@@ -227,7 +227,7 @@ describe('typert loader', () => {
     await vi.waitFor(() => {
       expect(ctx.typert.get('@fixture/with-typert#Thing')).toBeUndefined()
     }, { timeout: 10_000 })
-    await ctx.loader.remove(plainId)
+    ctx.loader.remove(plainId)
     await ctx.loader.await()
 
     await ctx.loader.create({ name: '@fixture/with-typert' })
